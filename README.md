@@ -11,6 +11,17 @@ jQuery ValJS is a jQuery Form Validation library with focus on three main things
   - Easy to extend with your own rules and custom event receivers
 
 ### Version
+0.7 2014-12-31
+- Completely rewritten code over a few weeks time
+- This version will not be compatible with the johnny5-version
+- Change of how CSS classes work (No longer Block Element Modifier by default)
+- A lot of work to test and make rule configuration work as intended
+- A lot of work has gone into preparing web site and documentation
+- Todo: Browser compability tests
+- Todo: Events
+- Todo: Methods
+- Todo: Custom rule overhaul
+- Todo: Tests, tests, test...
 0.1 - My "old" version called Johnny5. Don't use it. It's horrible....
 
 ### History

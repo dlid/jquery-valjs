@@ -1,1482 +1,2632 @@
-/*!
- * jQuery johnny5 Form Validation Plugin
- * version: 0.1 2013-08-16
- * Requires jQuery (Version TBA)
- * Copyright (c) 2013 David Lidström
+/*! ValJS v0.7 (2014-12-31) | (c) 2014 | www.valjs.io */
+/*global window, jQuery */
+/*jslint bitwise: true */
+/*Compiled via http://closure-compiler.appspot.com/home*/
+/**
+ * [description]
+ * @param  {[type]} window [description]
+ * @param  {{inArray : function()}} $      [description]
+ * @return {[type]}        [description]
  */
-    (function ($, window) {
-        var _registeredValidators = [],                     // The global list of registered validators
-            _pluginDataPrefix = 'j5',                       // The prefix for element data variables
-            _eventNamespace = 'j5',                         // Event namespace
-            _validatorsDataName = 'j5v',                    // TBD
-
-            // Events
-            _eventNameInvalidField = 'invalidfield',
-            _eventNameValidatingForm = 'validatingform',
-            _eventNameInvalidForm = 'invalidform',
-            _eventNameValidform = 'validform',
-            _eventNameSubmitForm = 'submitform',
-            _eventNameDisabling = 'disabling',
-            _validatorOptionsDataName = 'j5-opt',
-
-            /**
-             * List of public methods in the jQuery plugin
-             * @type {Object}
-             */
-            _methods = {
-                init: function (_options) {
-                    var defaults = {
-                        // default properties go here
-                        prefix: 'validate',
-                        lang : 'en',
-                        log: false,
-                        novalidate : true,
-                        defaultErrorMessage : 'Field value is not valid',
-
-                        alwaysTriggerEvents : false,
-
-                        classes : {
-                            'form' : 'j5__form',
-                            'field' : 'j5__field',
-                            'msg' : 'j5__msg',
-                            'label' : 'j5__label',
-
-                            'error' : '--error',
-                            'warning' : '--warning',
-                            'invalid' : '--invalid',
-                            'valid' : '--valid',
-                            'unknown' : '--unknown'
-                        },
-
-                        classField : 'j5__field',
-                        classFieldUnknown : 'j5__field--unknown',
-                        classFieldValid : 'j5__field--valid',
-                        classFieldInvalid : 'j5__field--invalid',
-                        classFieldError : 'j5__field--error',
-                        classFieldWarning : 'j5__field--warning',
-                        classFieldOff : 'j5__field--off',
-
-                        classForm : 'j5__form',
-                        classFormValid : 'j5__form--valid',
-                        classFormInvalid : 'j5__form--invalid',
-                        classFormUnknown : 'j5__form--unknown',
-
-                        classMsg : 'j5__msg',
-                        classMsgError : 'j5__msg--error',
-                        classMsgWarning : 'j5__msg--warning',
-                        classMsgValid : 'j5__msg--valid',
-
-                        classLabelError : 'j5__lbl--error',
-                        classLabelWarning : 'j5__lbl--warning',
-                        classLabelValid : 'j5__lbl--valid',
-
-                        submitSelector : "input[type='submit'],button[type='submit'],input[type='image']",
-                        classUnvalidated : 'j5-unvalidated',
-                        'class' : 'j5-validator',
-                        'strings' : {
-                            "Field" : "Field"
-                        }
-                    };
-                    _options = $.extend(defaults, _options);
-
-                return this.each(function () {
-                    var $_localThis = $(this),
-                        _data = $_localThis.data(_pluginDataPrefix + '_data'),
-                        $form = null;
-
-                    // If the plugin hasn't been initialized yet
-                    if (!_data) {
-
-    		                	if( $_localThis.prop('tagName') == 'FORM') {
-    		                		$form = $_localThis;
-    		                	} else {
-    		                		$form = $_localThis.closest('form')
-    		                	}
-
-                        $_localThis.data('j5-iscontext', true).data(_pluginDataPrefix + '_data', {_target : $_localThis, _targetForm : $form, _options : _options} )
-                        .addClass(_options['class']);
-                        
-                        if( _options.novalidate == true ) {
-                            $form.attr('novalidate', '');
-                        }
-
-                        _methods.bindFormElements( $_localThis, _options );
-                    }
-                });
-            },
-
-            bindFormElements : function(_target, _options) {
-
-
-                _allElements = _target.find('input,select,textarea');
-
-                var length = _allElements.length,
-                    _lBindingPrefix = 'data-' + _options.prefix + '-',
-                    _data = _target.data(_pluginDataPrefix + '_data');
-                _data['_allElements'] = _allElements;
-
-                _target.data(_pluginDataPrefix + '_data', _data);
-
-                var _ctx = _pluginDataPrefix + '-context';
-
-                 $(_allElements).data('j5-closest', "." + _options['class']);
-
-                // Bind submitbuttons
-                
-                _target.on("click check", _options.submitSelector, function(e) {
-
-                	var _target = $(this).closest("." + _options['class']),
-                		_data = _target.data(_pluginDataPrefix + '_data');
-
-                        var form = _data._targetForm ? _data._targetForm : _target;
-
-                		if( !form.data(_ctx)) {
-                			form.data(_ctx, _target);
-                        }
-
-                });
-
-                _target.on("keydown", "input", function(e) {
-                	if( e.which == 13) {
-        			 e.stopPropagation();	
-                	 var _target = $(this).closest("." + _options['class']),
-                		_data = _target.data(_pluginDataPrefix + '_data'),
-                		form = _data._targetForm ? _data._targetForm : _target;
-                		form.data(_ctx, _target);
-
-                        // No submit button? Hm, let's just send the form them.. or not...
-
-
-                	}
-
-                });
-
-                _data._targetForm.on('submit', function(e) {
-
-                	if( $(this).data(_ctx) ) {
-                		//e.preventDefault();
-
-    	            	var $_localThis = $(this);
-    	            		c = $_localThis.data(_ctx);
-                         
-                        ev = c.johnny5('validateForm', true, true);
-
-                        if( ev.type == _eventNameInvalidForm) {
-                            e.preventDefault();
-                        } else {
-                            var _data = c.data(_pluginDataPrefix + '_data');
-                            var ev = triggerEvent(c, _data._options, _eventNameSubmitForm, {
-                                elements : _data._allElements
-                            })
-                            if( ev.isDefaultPrevented() )
-                                e.preventDefault();
-                        }
-
-    	            	$_localThis.removeData(_ctx);
-                	}
-
-                })
-
-                _target.on('reset.' + _eventNamespace, function() {
-                    // Ok, we 
-                 //   console.warn("RESET the elements");
-                	$(this).removeData(_ctx);
-                });
-
-                for( var i=0; i < length; i++ ) {
-                    attr = _allElements[i].attributes,
-                    alen = attr.length;
-                    _lBindings = [];
-                    
-                    for( var v in _registeredValidators ){
-                        if( _registeredValidators.hasOwnProperty(v) ) {
-                            if( $.isFunction(_registeredValidators[v].customBind) ) {
-                                if( _registeredValidators[v].customBind($(_allElements[i])) == true ) {
-                                    bindSingleFormElement( _target, _allElements[i], v, _options );
-                                    _lBindings.push(v);
-                                }
-                            }
-                        } 
-                    }
-                    
-
-                    for( var j = 0; j < alen; j++) {
-
-                        if( attr[j].name.indexOf(_lBindingPrefix) == 0 || attr[j].name.indexOf('data-') == 0 ) {
-                            if(attr[j].name.indexOf(_lBindingPrefix) == 0 ) {
-                                _currentValidatorName = attr[j].name.substr(_lBindingPrefix.length);
-                            } else {
-                                _currentValidatorName = attr[j].name.substr(5);
-                            }
-                            
-                            if( _currentValidatorName ) {
-                                if( $.inArray(_currentValidatorName, _lBindings) == -1 && _registeredValidators[ _currentValidatorName ] ) {
-                                    bindSingleFormElement( _target, _allElements[i], _currentValidatorName, _options, attr[j].value );
-                                    _lBindings.push(_currentValidatorName);
-                                }
-                            }
-                        }
-                    }
-
-                   
-
-                    if( _lBindings.length > 0 )
-                        $(_allElements[i]).attr('data-' + _options.prefix + '-validators', _lBindings.join(' ') );
-                }
-
-            },
-
-            
-            validateForm : function(_showAsErrors, _returnEvent) {
-                var _data = this.data(_pluginDataPrefix + '_data');
-
-                if( _showAsErrors != true)
-                    _showAsErrors = false;
-
-                var ev = triggerEvent(this, _data._options, _eventNameValidatingForm)
-                _lElementCount = _data._allElements.length,
-                _lInvalidElements = [];
-                if( !ev.preventDefault()  ) {
-                    for( var i=0; i < _lElementCount; i++) {
-                        if (typeof $(_data._allElements[i]).data(_validatorsDataName) != 'undefined') {
-                            triggerValidation(this, $(_data._allElements[i]), _data._options, ev);
-                            if( $(_data._allElements[i]).data(_pluginDataPrefix + 'Ok') == false) {
-                                _lInvalidElements.push(
-                                    $(_data._allElements[i]).data('j5-err')
-                                );
-                            }
-                        }
-                    }
-                }
-
-                if( _lInvalidElements.length > 0 ) {
-                    ev = triggerEvent(this, _data._options, _eventNameInvalidForm, {
-                        fields : _lInvalidElements
-                    });
-
-                } else {
-                    ev = triggerEvent(this, _data._options, _eventNameValidform);
-
-                }
-                if( _returnEvent == true)
-                    return ev;
-                else 
-                    return this;
-
-            },
-
-            triggerValidation : function(a,b,c) {
-                var $this = $( this ),
-                    closest = $this.closest( $this.data('j5-closest')),
-                    _data = closest.data(_pluginDataPrefix + '_data');
-
-                triggerValidation(_data._target, $this, _data._options, null);
-               
-            },
-
-
-            log : function(_options, _text) {
-            	if( _options.log && window.console && window.console.log ) {
-            		console.log(_text);
-            	}
-            },
-
-            disable : function(_filter, _keepValue) {
-
-                var _data = this.data(_pluginDataPrefix + '_data');
-
-                if( _data == null ) {
-                    var elements = [];
-                    for( var i=0; i < this.length; i++) {
-                        var $elm = $(this[0]);
-                        if( $elm.data('j5-closest') ) {
-                            var closest = $elm.closest( $elm.data('j5-closest'));
-                            if( closest.length == 1 ) {
-                                _data = closest.data(_pluginDataPrefix + '_data');
-                                elements.push($elm);
-                            }
-                        }
-                    }
-
-                } else {
-
-                    var elements = _filter ? $(_data._allElements).filter(_filter) : _data._allElements; 
-                }
-
-                for( var i=0; i < elements.length; i++) {
-
-                    var e = triggerEvent(_data._target, _data._options, 'disablefield', { 
-                        field : elements[i]
-                    });
-
-                    $(elements[i]).addClass(_data._options.classFieldOff);
-
-                    if( e.isDefaultPrevented() )
-                        continue;
-
-                    resetElement( _data._target, $(elements[i]), _data._options, e, _keepValue);
-                }
-                return this;
-
-            },
-
-            enable : function(_filter) {
-                var _data = this.data(_pluginDataPrefix + '_data');
-
-                if( _data == null ) {
-                    var elements = [];
-                    for( var i=0; i < this.length; i++) {
-                        var $elm = $(this[0]);
-                        if( $elm.data('j5-closest') ) {
-                            var closest = $elm.closest( $elm.data('j5-closest'));
-                            if( closest.length == 1 ) {
-                                _data = closest.data(_pluginDataPrefix + '_data');
-                                elements.push($elm);
-                            }
-                        }
-                    }
-                } else {
-                    var elements = _filter ? $(_data._allElements).filter(_filter) : _data._allElements; 
-                }
-
-                for( var i=0; i < elements.length; i++) {
-                    enableElement( _data._target, $(elements[i]), _data._options, null);
-                   // if( _trigger ) {
-                   //    triggerValidation(_data._target, $(elements[i]), _data._options, e );
-                    //}
-                }
-                 return this;
-            },
-
-            addValidator : function(name, _options){
-
-                var defaults = {
-                    parameters : [],
-                    strings : { '_default' : name + ' default message'},
-                    validate : $.noop,
-                    onBeforeBind : $.noop,
-                    onAfterBind : $.noop,
-                    onGetValue : $.noop,
-                    data : {}
-                };
-
-                if( typeof name == "string" ) {
-                    _options = $.extend(defaults, _options);
-                    _registeredValidators[name] = _options;
-                    $.johnny5.strings['en'][name] = _options.strings;
-                } else {
-                    if( name != null && typeof name == "object"  ) {
-                        for( var k in name ) {
-                            if( name.hasOwnProperty(k) ) {
-                                _methods.addValidator(k, name[k]);
-                            }
-                        }
-                    } else {
-                        $.error('arg[0]!=string');
-                    }
-                }
-
-            },
-
-            destroy: function () {
-                // Remove all events
-                
-                return this.each(function () {
-                    var $_localThis = $(this),
-                        _data = $_localThis.data(_pluginDataPrefix + '_data');
-                    // That's right, namespaced events!
-                    $_localThis.removeData(_pluginDataPrefix + '_data');
-                    $_localThis.off('.' + _eventNamespace, 'input');
-                });
-            }
-            // Add more methods here
+window.ValJS = (function (window, $) {
+    'use strict';
+    /** @global $ */
+    /*global window, $ */
+    /**
+     * @global $
+     */
+
+    var ValJS = function (elm, options) {
+        this.valjsv = '0.7';
+        this.context = elm;
+        this.jqContext = $(elm);
+        this.jqContext.data(dataNameValJsInstance, this);
+        this.options = options;
+        this.metadata = this.jqContext.data('valjs');
+        this.$form = null;
+
+        this.vars = {
+            off: 'valjs__off', // data()-variable set on fields with validation disabled
+            clean: {}         // will contain combinations of elements and modifiers so we can quickly clear them all
         };
 
+        this.e = []; // Will contain bound elements, not all found elements
+        this.s = [];  // Will contain submit button(s)
 
 
-        function bindSingleFormElement(_target, elm, _currentValidatorName, _options, value) {
+    },
 
-            var $elm = $(elm),
-                _lElmSelector = null,
-                evto = {};
+    dElmType = 'valjs-ty',
+    wj = ValJS,
+    trueValue = true,
+    falseValue = false,
+    submitQuery = 'input[type="submit"],button[type="submit"],button:not([type]),input[type="image"]',
+    selectTypeName = 'select',
+    msgValJSNotFound = "ValJS not found",
+    dataNameValJsValueCache = 'vjs-vc',
+    dataNameValJsInstance = 'vjs-i',
+    dataNameValJsRules = 'vjs-rs',
+    dataNameValJsHash = 'vjs-h',
+    dataNameValJsContext = 'vjs-ct',
+    dataNameValJsIsValid = 'vjs-v',
+    dataNameValJsFormContext = 'vjs-fct',
+    dataNameValJsBound = 'vjs-b',
+    dataNameValjsConfig = 'vjs-cfg',
+    dataNameValjsElementMsg = 'vjs-msge',
 
-            if( !$elm.prop('name') && !$elm.prop('id') )
-                $elm.prop('id', "v-" + guid());
+    dataNameValjsValidationStatus = 'vjs-vs',
 
-            _lElmSelector = $elm.prop('name') ? "[name='" + $elm.prop('name') + "']" : '#' + $elm.prop('id')
+    typeNameString = "string",
+    keyNameDefault = "error",
+    eventNamespace = '.valjs',
 
-            $(elm).addClass(_options.classField);
-            if( $.isFunction(_registeredValidators[_currentValidatorName].onBeforeBind) &&
-                _registeredValidators[_currentValidatorName].onBeforeBind($elm, evto) == false ) 
-                return;
+    rulesUsingMinMax = ['week','date','datetime','number','listmax', 'filemin', 'filemax'],
 
-            if( $.isFunction(_options.onBeforeBind) &&
-                _options.onBeforeBind($elm, evto) == false ) 
-                return;
+    clickEvent = 'click',
+    changeEvent = 'change',
+    keyupEvent = 'keyup',
+    keydownEvent = 'keydown',
+    blurEvent = 'blur';
 
-            var _lAttachedValidators = $elm.data(_validatorsDataName),
-                _lAttachEvents = false;
+    /**
+     * Utility method to clear all modifiers on an element
+     * @param  {*} $elm        [description]
+     * @param  {string} elementType [description]
+     * @param  {*} valjs       [description]
+     * @return {*}             [description]
+     */
+    function valjsClearModifiers($elm, elementType, valjs) {
+        /** @type {{removeClass:function(string, boolean) : *}} */
+        var d = valjsRemoveClass($elm, valjs.vars[elementType]);
+        return d;
+    }
 
-            // Ok, what do we have? 
-            if( !_lAttachedValidators ) {
-                $elm.data(_validatorsDataName, [_currentValidatorName]);
-                _lAttachEvents = true;
-            } else {
-                _lAttachedValidators.push(_currentValidatorName);
-                $elm.data(_validatorsDataName, _lAttachedValidators);
+    /**
+     * Utility method to get the length of an object or 0 if undefined
+     * @param @type {{length:number}} o [description]  [varname] [description]
+     * @return {number}   [description]
+     */
+    function valjsLength(o) {
+        /** */
+        if (o !== undefined && o !== null && o.length !== undefined) {
+            return o.length;
+        }
+        return 0;
+    }
+
+    function valjsSelectElements(selector, element) {
+        return $(element).find(selector);
+    }
+
+    /**
+     * Check if an object is a function
+     * @param  {*} object [description]
+     * @return {boolean}        [description]
+     */
+    function valjsIsFunction(object) {
+        /** @type {{isFunction:function(*) : boolean}} $ */
+        var jQuery = $;
+        return jQuery.isFunction(object);
+    }
+
+    /**
+     * [valjsInArray description]
+     * @param  {*} value [description]
+     * @param  {Array} array [description]
+     * @return {number}       [description]
+     */
+    function valjsInArray(value, array) {
+        /** @type {{inArray:function(*, Array) : number}} $ */
+        var jQuery = $;
+        return jQuery.inArray(value, array);
+    }
+
+    /**
+     * [valjsAddRule description]
+     * @param  {string} name        [description]
+     * @param  {*} options     [description]
+     * @param  {*} testFnOrMsg [description]
+     * @param  {*} bindFnOrMsg [description]
+     */
+    function valjsAddRule(name, ruleConfig) {
+        /** @type {{isFunction:function(*) : boolean, extend:function(boolean, *, *, *)}} args */
+        var jQuery = $;
+
+        if( ruleConfig.options !== undefined) {
+            if (ruleConfig.options.msg !== undefined) {
+                ruleConfig.options.msg = valjsGetMsgConfig(ruleConfig.options.msg);
             }
+        }
+        if(ruleConfig.value === undefined) {
+            ruleConfig.value = trueValue;
+        }
+        ruleConfig = valjsExtend(trueValue, {}, ValJS.ruleDefaults, { name: name }, ruleConfig);
+        wj.rules.k.push(name);
+        wj.rules[name] = ruleConfig;
+    }
 
-            var _lValidatorAttributePrefix = 'data-' + _options.prefix + '-' + _currentValidatorName + '-',
-                _lAllValidatorOptions = $elm.data(_validatorOptionsDataName), _lValidatorOptions = {},
-                _lAttributeList = $elm[0].attributes;
+    /**
+     * Get classes for an element type based on valjs configuration and element type
+     * @param  {*} valjs       [description]
+     * @param  {string} elementType [description]
+     * @param  {...string} modifiers   [description]
+     * @return {string}             [description]
+     */
+    function valjsGetClass(valjs, elementType, modifiers) {
+        var cn = valjs.config.elements,
+            mcf = valjs.config.modifiers || {},
+            ret = cn && cn[elementType] ? [cn[elementType]] : [],
+            modifier_index,
+            prefix = '';
 
-            if( !_lAllValidatorOptions ) _lAllValidatorOptions = {};
+        // No modifiers? Just exit then
+        if (!modifiers) {
+            return ret[0];
+        }
 
-            // Set the property value
-            if( value )
-                _lValidatorOptions[_currentValidatorName] = value;
-            else
-                _lValidatorOptions[_currentValidatorName] = $elm.attr(_lValidatorAttributePrefix.substr(0, _lValidatorAttributePrefix.length-1));
-            
-            if( typeof _lValidatorOptions[_currentValidatorName] == 'undefined' &&
-             $.isFunction(_registeredValidators[_currentValidatorName].onGetValue) ) {
-                var v = _registeredValidators[_currentValidatorName].onGetValue($elm);
-                if( typeof v == "object") 
-                    _lValidatorOptions = $.extend(_lValidatorOptions, v);
-                else 
-                    _lValidatorOptions[_currentValidatorName] = v;
-            } 
+        if( valjs.config.modifierSeparator && cn[elementType]) {
+            prefix = cn[elementType] + valjs.config.modifierSeparator ;
+        }
 
-            // Find all attributes matching
-            for( var i = 0; i < _lAttributeList.length; i++ ) {
-                var a = _lAttributeList[i];
-                if( a.name.indexOf( _lValidatorAttributePrefix ) == 0 ) {
-                    _lValidatorOptions[a.name.substr( _lValidatorAttributePrefix.length )] = a.value;
-                } else if( a.name.indexOf( 'data-' + _currentValidatorName + '-' ) == 0 ) {
-                    _lValidatorOptions[a.name.substr( ('data-' + _currentValidatorName +'-').length )] = a.value;
+        // If it's a string we just add it
+        if (typeof modifiers === typeNameString) {
+            ret.push(prefix + (mcf[modifiers] !== undefined ? mcf[modifiers] : ''));
+        } else if (valjsLength(modifiers)) {
+                for (modifier_index = 0; modifier_index < valjsLength(modifiers) ; modifier_index += 1) {
+                    ret.push(prefix + (mcf[modifiers[modifier_index]] !== undefined ? mcf[modifiers[modifier_index]] : ''));
                 }
-            }
-
-            _lAllValidatorOptions[_currentValidatorName] = _lValidatorOptions;
-            $elm.data(_validatorOptionsDataName, _lAllValidatorOptions)
-
-            if( $.isFunction(_registeredValidators[_currentValidatorName].onAfterBind) ) {
-                _registeredValidators[_currentValidatorName].onAfterBind($elm, {target : _target, data : _lValidatorOptions} ) ;
-            }
-
-            if( _lAttachEvents ) {
-
-                if( $elm.prop('tagName') == "INPUT" || $elm.prop('tagName') == "TEXTAREA" ) {
-
-                    // Store value in order to detect changes properly
-                    $elm.addClass(_options.classFieldUnknown).data('j5-val', $(_lElmSelector).val()); 
-                 
-                    _target.on('click.'+_eventNamespace+' change.'+_eventNamespace+' keyup.'+_eventNamespace+' blur.'+_eventNamespace, _lElmSelector, function(e) {
-
-                        var $_localThis = $(this),
-                            cval = $_localThis.data('j5-val');
-                        if( $_localThis.prop('type').toLowerCase() == 'checkbox' || 
-                            $_localThis.prop('type').toLowerCase() == 'radio') {
-                            cval = $_localThis.is(':checked') ? 1 : 0;
-                        }
-
-                        if( $_localThis.val() != cval || ($_localThis.hasClass(_options.classFieldUnknown ) && e.type == 'focusout' ) ) {
-                            $_localThis.data('j5-val', $_localThis.val());
-                            triggerValidation(_target, $_localThis, _options, e );
-                            $_localThis.removeClass(_options.classFieldUnknown);
-                        }
-                    });
-                } else if( $elm.prop('tagName') == 'SELECT' ) {
-                    
-                    _target.on('change.'+_eventNamespace+' click.'+_eventNamespace, _lElmSelector, function(e) {
-                        var $_localThis = $(this);
-                        if( $_localThis.val() != $(this).data('j5-val') || ($_localThis.hasClass(_options.classFieldUnknown ) && e.type == 'focusout' ) ) {
-                            $_localThis.data('j5-val', $_localThis.val());
-
-                        triggerValidation(_target, $_localThis, _options, e );
-
-                        }
-
-                    });
-
-                }
-
-
-            }
-
         }
 
+        return ret.join(' ');
+    }
 
-         function enableElement(_target, $elm, _options, evt) {
-             //
-            // Trigger the event
-            //
-            var e = triggerEvent(_target, _options, 'enablefield', { 
-                field : $elm[0]
-            }, evt);
+    function invokeElementFindMsgFunction(options) {
+        var $elm = options.element;
+        if(!$elm) {
+            return null;
+        }
+        var cfg = $elm.data(dataNameValjsConfig);
+        return cfg._findMsgFn(options);
+    }
 
-             if( e.isDefaultPrevented() )
-                return;
+    function invokeElementFindLabelFunction($elm, valjs) {
+        if(!$elm) {
+            return null;
+        }
+        var cfg = $elm.data(dataNameValjsConfig);
+        return cfg._findLabelFn($elm, valjs);
+    }
 
-            $elm.removeClass(_options.classFieldOff)
+    /**
+     * Utility function set the class on an element
+     * @param  {{addClass:function(string)}} $elm        [description]
+     * @param  {*} valjs       [description]
+     * @param  {string} elementType [description]
+     * @param  {...string|string} modifiers   [description]
+     * @return {*}             [description]
+     */
+    function valjsSetClass($elm, valjs, elementType, modifiers) {
+        if (!$elm) {
+            return;
+        }
+        valjsClearModifiers($elm, elementType, valjs);
+        valjsJsAddClass($elm, valjsGetClass(valjs, elementType, modifiers));
+        return $elm;
+    }
 
-         }
+    function valjsJsAddClass($elm, className) {
+        return $elm.addClass(className);
+    }
 
-      /**
-         * Generates a GUID string.
-         * @returns {String} The generated GUID.
-         * @example af8a8416-6e18-a307-bd9c-f2c947bbb3aa
-         * @author Slavik Meltser (slavik@meltser.info).
-         * @link http://slavik.meltser.info/?p=142
-         */
-         function guid() {
-            function _p8(s) {
-                var p = (Math.random().toString(16)+"000000000").substr(2,8);
-                return s ? "-" + p.substr(0,4) + "-" + p.substr(4,4) : p ;
-            }
-            return _p8() + _p8(true) + _p8(true) + _p8();
+    /**
+     * Utility method to get the element type
+     * @param {{prop:function(string)}|*} $elm [description]
+     * @return {*}      [description]
+     */
+    function valjsGetElementType($elm) {
+
+        // We cache this check
+        if ($elm.data(dElmType) !== undefined) {
+            return $elm.data(dElmType);
         }
 
-         /**
-          * [resetElement description]
-          * @param  {[type]} _target
-          * @param  {[type]} $elm
-          * @param  {[type]} _options
-          * @param  {[type]} evt
-          * @param  {[type]} _keepValue
-          * @return {[type]}
-          */
-        function resetElement(_target, $elm, _options, evt, _keepValue) {
+        var type = $elm.prop('tagName').toLowerCase(),
+            result = {
+                type: null
+            },
 
-            //
-            // Trigger the event
-            //
-            var e = triggerEvent(_target, _options, 'resetfield', { 
-                field : $elm[0]
-            }, evt);
+        // allowedTypes can be returned as "type"
+        allowedTypes = ['text', 'checkbox', 'file', 'radio', 'submit'];
 
-            if( e.isDefaultPrevented() )
-                return;
-
-            // Reset the element..
-            if( _keepValue != true )
-            $elm.val($elm.prop('defaultValue'));
-
-            resetElementMsg(_target, $elm, _options);
-            $elm.removeClass( _options.classFieldValid + " " + _options.classFieldWarning + " " + _options.classFieldError + " " + _options.classFieldInvalid )
-            .addClass( _options.classFieldUnknown);
-            
-
-        }
-
-        function _(_text, options) {
-            if( options.strings[_text] ) {
-                return options.strings[_text];
-            } else {
-                return _text;
-            }
-        }
-
-        function triggerValidation(_target, $elm, _options, evt) {
-
-            var _lValidations = $elm.data(_validatorsDataName),
-                _lErrorMessage = "",
-                errorRule = "";
-
-
-            if( !_lValidations ) {
-                return;
-            } 
-
-            if( $elm.hasClass(_options.classFieldOff) )
-                return;
-          
-            for(var i=0; i < _lValidations.length; i++) {
-                if( $.isFunction(_registeredValidators[_lValidations[i]].validate) ) {
-                    var _lValidatorOptions = $elm.data(_validatorOptionsDataName),
-                        _validator = _registeredValidators[_lValidations[i]],
-                        validatorName = _lValidations[i];
-
-                    var o = {
-                        'data' : _lValidatorOptions[_lValidations[i]],
-                        'event' : evt
-                    };
-
-                    var _lMacros = {};
-
-                    _lMacros['Field'] = $elm.attr('name') ? $elm.attr('name') : $elm.attr('id');
-
-                    // Attempt to find the label for the field in order to 
-                    // use it as a macro value
-                    if( $elm.attr('id') ) {
-                        l = _target.find("label[for='" + $elm.attr('id') + "']");
-                        if( l.length > 0) {
-                            _lMacros['Field'] = l.text();
-                            _lMacros['Label'] = _lMacros['Field'];
-                        }
-                    }
-
-                    var check = _registeredValidators[_lValidations[i]].validate($elm, o),
-                        _dataprefix = 'data-' + _options.prefix + '-' + _lValidations[i],
-                        _shortdataprefix = 'data-' + _lValidations[i],
-                        attr = [];
-
-                   if( typeof check == 'boolean' && check == true ) {
-                    continue;
-                   } else {
-
-                    var stringKey = check,
-                        validatorMacros = {};
-
-                    if( typeof check == 'object' ) {
-
-                        if( check.length && check.length == 2 && check[0] &&  typeof check[0] == 'string' ) {
-                            stringKey = check[0];
-                            validatorMacros = check[1];
-                        }
-                     } else if(typeof check == "string" ) {
-                        stringKey = check;                
-                    } else {
-                        stringKey = '';
-                        if( typeof check == 'boolean')
-                            stringKey = 'default';
-                    }
-
-                    if (stringKey && stringKey != 'default') {
-                        attr.push(_dataprefix + '-' + stringKey + '-msg');
-                        attr.push(_shortdataprefix + '-' + stringKey + '-msg');
-                    }
-                    attr.push(_dataprefix + '-msg');
-                    attr.push(_shortdataprefix + '-msg');
-                    
-                    for( var attr_i=0; attr_i < attr.length; attr_i++){
-                        if( $elm.attr(attr[attr_i]) ) {
-                            _lErrorMessage = $elm.attr(attr[attr_i]);
-                            break;
-                        }
-                    }
-
-                    if( stringKey && !_lErrorMessage ) {
-                        // Just the name of the message
-                        m = getValidatorString(_options.lang, validatorName, stringKey);
-                        if( m )
-                            _lErrorMessage = m;
-                    }
-
-                    if( !_lErrorMessage )
-                        _lErrorMessage = $.johnny5.strings['en']['_default'];
-
-
-                    if( _lErrorMessage.indexOf('$') != 0) {
-
-                        _lMacros = $.extend( _lMacros, validatorMacros);
-                        
-                        var _newstring = _lErrorMessage;
-
-                        _pattern = /\{\?([^\|]+)([^\}]+\})/g;
-                        _match = null;
-                        while( (_match = _pattern.exec(_newstring)) ) {
-                            var m = replaceMacros(_match[1], _lMacros, true );
-                            if( m != null ) {
-                                _newstring = _newstring.replace(_match[0], m);
-                            } else {
-                                _newstring = _newstring.replace(_match[0], _match[2].substr(0, _match[2].length-1).substr(1));
-                            }
-                        }
-
-                        _newstring = replaceMacros(_newstring, _lMacros);
-
-                        _lErrorMessage = _newstring;
-                  
-                    }
-
-                    }
-                }
-            }
-
-            if( _lErrorMessage.length == 0 ) {
-                elementIsValid(_target, $elm, evt, _options);
-            } else {
-                var _showAsErrors = false;
-                if( evt && evt.type == _eventNameValidatingForm) {
-                    _showAsErrors = true;
-                }
-
-                elementIsInvalid(_target, $elm, evt, _options, errorRule, _lErrorMessage, _showAsErrors);
-            }
-
-
-
-        }
-
-
-        function replaceMacros(str, macros, emptyIfNotExists) {
-            var _pattern = /\{\$([A-Za-z0-9]+)(\|.+|)\}/g,
-                _match,
-                _newstring = str;
-
-                if( emptyIfNotExists == true ) {
-                    _pattern = /\\?\$([A-Za-z0-9]+)/g;
-                     while( (_match = _pattern.exec(str)) ) {
-                        if( macros[_match[1]] ) {
-                            var t = _match[0];
-                                if( t.substr(0,1) == '$' ) {
-                                    _newstring = _newstring.replace(t, macros[_match[1]]);
-                            }
-                        } else {
-                            return null;
-                        }
-                    }
+        if (type === 'input') {
+            type = $elm.prop('type').toLowerCase();
+            if (type !== undefined) {
+                if (valjsInArray(type, allowedTypes) === -1) {
+                    result[type] = trueValue;
+                    result.type = 'text';
                 } else {
-                     while( (_match = _pattern.exec(str)) ) {
-
-                        if( macros[_match[1]] ) {   
-                            _newstring = _newstring.replace(_match[0], macros[_match[1]]);
-                        } else {
-                            var rep = "";
-                            if( _match[2] ) {
-                                rep = _match[2].substr(1);
-                            }
-                            _newstring = _newstring.replace(_match[0], rep);
-                        }
-                    }
+                    result.type = type;
                 }
-           
-
-            return _newstring   ;
+            } else {
+                type = 'text';  // fallback on text
+            }
+        } else {
+            if (type === selectTypeName) {
+                result.type = type;
+                result.isMultiple = (valjsGetAttr($elm, 'multiple') === undefined ? falseValue : trueValue);
+            } else if (type === 'textarea') {
+                result.type = type;
+            }
         }
 
+        $elm.data(dElmType, result);
+        return result;
+    }
 
-        function getValidatorString(lang, validatorName, stringName) {
-            if( !$.johnny5.strings[lang] ) {
-                if( lang != 'en')
-                    return getValidatorString('en', validatorName, stringName)
-                else 
-                    // return default error message if the language was not found
-                    return $.johnny5.strings['en']['_default'];
-            }
 
-            if( $.johnny5.strings[lang][validatorName] ) {
-                if( $.johnny5.strings[lang][validatorName][stringName] ) {
-                    return $.johnny5.strings[lang][validatorName][stringName];
+    function valjsGetElementValue($elm, event) {
+        var et = valjsGetElementType($elm),
+            originalValue = $elm.data(dataNameValJsValueCache),
+            value = null,
+            ret = {
+                value: null,
+                upd: trueValue // true if the value has changed since last time
+            };
+
+        if (et.type === 'submit') {
+            return ret;
+        }
+        switch (et.type) {
+            case 'checkbox':
+            case 'radio':
+                value = $elm.prop('checked');
+                break;
+            case selectTypeName:
+                ret.value = $.map($elm.find('option'), function (n) {
+                    /** @type {{ is : function(string) : boolean, val : function() : string, text : function() : string}} */
+                    var $n = $(n);
+                    if ($n.is(':selected')) {
+                        return $n.val() !== undefined ? $n.val() : $n.text();
+                    }
+                });
+
+                value = ret.value.join(',');
+                if (value === "" && valjsLength(ret.value) > 0) {
+                    value = " ";
                 }
-            }
-
-            if( lang != 'en')
-                return getValidatorString('en', validatorName, stringName)
+                break;
+            default:
+                value = $elm.val();
+        }
         
-            return null;    
-        }
-
-
-        function bytesToSize(bytes) {
-           var sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-           if (bytes == 0) return '0 Bytes';
-           var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-           return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
-        };
-
-
-        function elementIsValid(_target, $elm, evt, _options) {
-
-            $elm.data(_pluginDataPrefix + 'Ok', true);
-            $elm.data('j5-msg', null);
-
-              if( evt && evt.isPropagationStopped() )
-                return;
-
-            // Check if this event should always be triggered
-            if( !_options.alwaysTriggerEvents ) {
-                if( $elm.data(_pluginDataPrefix + '_elementStatus') == ".")
-                    return;
-                $elm.data(_pluginDataPrefix + '_elementStatus', ".");
-             }
-
-            //
-            // Trigger the validated event
-            //
-            var e = triggerEvent($elm, _options, 'validfield', { 
-                field : $elm[0]
-            }, evt),
-            _lFormGroup,
-            _lFeedbackIcon,
-            _lErrcontainer;
-
-
-            if( e.isDefaultPrevented() )
-                return;
-
-            $elm.removeClass(_options.classFieldUnknown + " " + _options.classFieldInvalid + " " + _options.classFieldWarning + " " + _options.classFieldError)
-            .addClass(_options.classFieldValid);
-
-            resetElementMsg(_target, $elm, _options);
-            _target.find("label[for='" + $elm.attr('id') + "']")
-            .addClass(_options.classLabelValid);
-        }
-
-        function resetElementMsg(_target, $elm, _options) {
-              var $s = $elm.parent().prop('tagName') == 'LABEL' ? $elm.parent() : $elm;
-
-            _target.find("label[for='" + $elm.attr('id') + "']")
-            .removeClass(_options.classLabelError + ' ' + _options.classLabelWarning + " " + _options.classLabelValid);
-
-            var _lErrcontainer = $s.next('.' + _options.classMsg).first(),
-            o = _lErrcontainer.data(_options._pluginDataPrefix + '-orig' );
-            if( _lErrcontainer.length != 0) {
-             _lErrcontainer.removeClass(_options.classMsgValid + ' ' + _options.classMsgWarning + ' ' + _options.classMsgError);
-
-            if( o ) {
-                _lErrcontainer.addClass(_options.classMsgValid).html(o);
-            } else
-             _lErrcontainer.empty().hide();
+        if (originalValue !== undefined) {
+            if (originalValue === value) {
+                ret.upd = falseValue;
             }
-
+        } else {
+            if (event !== undefined && event.type == 'click') {
+                ret.upd = falseValue;
+            }
         }
 
-        function triggerEvent(_target, _options, name, eData, evt) {
-            var _data, _context = _target;
-
-            if( _target.data('j5-closest') ) {
-                _context = _target.closest(_target.data('j5-closest'));
-            }
-
-
-
-            _data = _context.data(_pluginDataPrefix + '_data'),
-                o = $.extend({
-                        context : _context,
-                        form : _data._targetForm[0]
-                    }, eData),
-                e = jQuery.Event( name + '.' + _eventNamespace );
-
-            if( evt ) {
-                o['event'] = evt;
-            }
-
-            _target.trigger(e, o);
-            return e;
+        if (ret.value === null) {
+            ret.value = value;
         }
 
-        function elementIsInvalid(_target, $elm, evt, _options, _currentValidatorName, _message, _showAsErrors) {
+        $elm.data(dataNameValJsValueCache, value);
 
-            $elm.data(_pluginDataPrefix + 'Ok', false);
+        return ret;
 
+    }
 
-             if( evt && evt.isPropagationStopped() )
-                return;
+    /**
+     * [valjsGetAttr description]
+     * @param  { { attr : function(string) : string } | * } $elm     [description]
+     * @param  {string} attrName [description]
+     * @return {string}          [description]
+     */
+    function valjsGetAttr($elm, attrName) {
+        return $elm.attr(attrName);
+    }
 
-            // Check if this event should always be triggered
-            if( !_options.alwaysTriggerEvents ) {
-                if( $elm.data(_pluginDataPrefix + '_elementStatus') == _currentValidatorName + _message + _showAsErrors)
-                    return;
-                $elm.data(_pluginDataPrefix + '_elementStatus', _currentValidatorName + _message + _showAsErrors);
-             }
+    function valjsGetObjectMsg(obj) {
+        if (obj.msg !== undefined) {
+            obj.msg = valjsGetMsgConfig(obj.msg);
+        }
+        return {};
+    }
 
-             $elm.data('j5-err', {
-                field : $elm[0],
-                message : _message,
-                validator : _currentValidatorName
-            }); 
+    function valjsGetElementFindFunctions(valjs, $elm, cfgContext) {
+        var resolvedConfiguration = { },
+            fieldNameSelector = valjsGetAttr($elm, 'name'),
+            fieldIdSelector = valjsGetAttr($elm, 'id');
 
-
-            //
-            // Trigger the validated event
-            //
-            var e = triggerEvent($elm, _options, _eventNameInvalidField, { 
-                field : $elm[0],
-                validator : _currentValidatorName,
-                message : _message,
-                type : _showAsErrors ? 'error' : 'warning'
-            },evt);
-
-            if( e.isDefaultPrevented() )
-                return;
-
-            $elm.removeClass(_options.classFieldUnknown + " " +_options.classFieldValid + " " + _options.classFieldWarning + " " + _options.classFieldError)
-            .addClass(_options.classFieldInvalid)
-            .addClass( _showAsErrors ? _options.classFieldError : _options.classFieldWarning);
-
-
-
-            var $s = $elm.parent().prop('tagName') == 'LABEL' ? $elm.parent() : $elm;
-
-            _target.find("label[for='" + $elm.attr('id') + "']")
-            .removeClass(_options.classLabelValid + " " + _options.classLabelError + " " + _options.classLabelWarning)
-            .addClass(_showAsErrors ? _options.classLabelError : _options.classLabelWarning);
-
-
-    		 var _lErrcontainer = $s.next('.' + _options.classMsg).first();
-    		 if( _lErrcontainer.length == 0) {
-    		 		_lErrcontainer = $('<span></span>').data(_options._pluginDataPrefix + '-c', 1).addClass(_options.classMsg).insertAfter($s);
-    		 } else {
-                if( !_lErrcontainer.data(_options._pluginDataPrefix + '-c') ) {
-                    if( !_lErrcontainer.data(_options._pluginDataPrefix + '-orig') )
-                        _lErrcontainer.data(_options._pluginDataPrefix + '-orig', _lErrcontainer.html());
+        if (fieldNameSelector) {
+            if (cfgContext[fieldNameSelector] !== undefined) {
+                if(cfgContext[fieldNameSelector].findMsg !== undefined) {
+                    resolvedConfiguration.findMsg = cfgContext[fieldNameSelector].findMsg;
                 }
-             }
+                if(cfgContext[fieldNameSelector].findLabel !== undefined) {
+                    resolvedConfiguration.findLabel = cfgContext[fieldNameSelector].findLabel;
+                }
+            }
+        }
+        return resolvedConfiguration;
+    }
 
-    		 _lErrcontainer.removeClass(_options.classMsgValid + ' ' + _options.classMsgWarning + " " + _options.classMsgError)
-             .addClass(_showAsErrors ? _options.classMsgError : _options.classMsgWarning).show().html(_message);
+    function valjsGetElementConfig(valjs, $elm, ruleName, cfgContext, bindRule) {
+        var resolvedConfiguration = { },
+            fieldNameSelector = valjsGetAttr($elm, 'name'),
+            fieldIdSelector = valjsGetAttr($elm, 'id'),
+            cfgFields = valjsExtend(trueValue, {}, cfgContext.fields),
+            cfgRules = cfgContext.rules;
+
+
+        if (cfgRules !== undefined) {
+            if (cfgRules[ruleName] !== undefined) {
+                resolvedConfiguration = valjsExtend(resolvedConfiguration, cfgRules[ruleName]);
+                if (bindRule !== falseValue) {
+                    resolvedConfiguration._rules = {};
+                    resolvedConfiguration._rules[ruleName] = 1;
+                }
+                if( typeof cfgRules[ruleName].msg !== undefined ) {
+                    resolvedConfiguration.msg = valjsGetMsgConfig(cfgRules[ruleName].msg);
+                }
+            }
         }
 
+        if (cfgFields) {
+            //if (fieldIdSelector) {
 
-        $.fn.johnny5 = function (m) {
-            if (_methods[m]) {
-                return _methods[m].apply(this, Array.prototype.slice.call(arguments,
-                    1));
-            } else if (typeof m === 'object' || !m) {
-                return _methods.init.apply(this, arguments);
+           // }
+            if (fieldNameSelector) {
+                if (cfgFields[fieldNameSelector] !== undefined) {
+
+                    if (cfgFields[fieldNameSelector].msg !== undefined) {
+                        resolvedConfiguration.msg = valjsGetMsgConfig(cfgFields[fieldNameSelector].msg, resolvedConfiguration.msg);
+                    }
+
+                    if(cfgFields[fieldNameSelector][ruleName] !== undefined) {
+                        resolvedConfiguration._rules = {};
+                        resolvedConfiguration._rules[ruleName] = 'instance.name';
+                        if( typeof cfgFields[fieldNameSelector][ruleName].msg !== undefined ) {
+                            resolvedConfiguration.msg = valjsGetMsgConfig(resolvedConfiguration.msg, cfgFields[fieldNameSelector][ruleName].msg);
+                            delete cfgFields[fieldNameSelector][ruleName].msg;
+                        }
+                        var x = cfgFields[fieldNameSelector][ruleName];
+                        resolvedConfiguration = valjsExtend(trueValue, resolvedConfiguration, cfgFields[fieldNameSelector][ruleName]);
+                    }
+                }
+            }
+        }
+
+        return resolvedConfiguration;
+    }
+
+    function valjsAttributeNameToOptionName(value) {
+        var myRegexp = /-([a-z0-9])/g,
+            match = myRegexp.exec(value),
+            newValue = value + "";
+        while (match!=null) {
+            newValue = newValue.replace(match[0], '' + match[1].toUpperCase());
+            match = myRegexp.exec(value);
+        }
+        return newValue;
+    }
+
+    function valjsGetElementConfigFromAttributes(valjs, $elm, rule, cfgContext, jsConfig) {
+        var resolvedConfiguration = { },
+            ruleName = rule.name,
+            attrName = "data-" + valjs.config.attrPrefix + ruleName,
+            attrValue = valjsGetAttr($elm, attrName),
+            binding = null,
+            customBindResult,
+            attrs,
+            attrData,
+            attribute_name,
+            attr_index,
+            attrValue,
+            local_string,
+            already_bound = jsConfig._rules !== undefined && jsConfig._rules[rule.name] !== undefined;
+
+        // If there is no data- attribute, try the customBind call:
+        if(!already_bound) {
+            if (attrValue === undefined) {
+                if (valjs.config.allowRuleInitialization === trueValue) {
+                    customBindResult = rule.testElement({ rule: rule, element: $elm, valjs: valjs });
+                    if (typeof customBindResult === 'object') {
+                        if (customBindResult[ruleName] !== undefined) {
+                            binding = { data: {} };
+                            resolvedConfiguration._rules = {};
+                            resolvedConfiguration._rules[rule.name] = 'custombind';
+                        } else {
+                            binding = { data : customBindResult };
+                        }
+                    } else {
+                        if (typeof customBindResult === 'boolean' && customBindResult === trueValue) {
+                            binding = { data: {} };
+                            resolvedConfiguration._rules = {};
+                            resolvedConfiguration._rules[rule.name] = 'bind';
+                        }
+                    }
+                }
             } else {
-                $.error('Method ' + m + ' does not exist on jQuery.johnny5');
+                resolvedConfiguration._rules = {};
+                resolvedConfiguration._rules[rule.name] = 'attribute';
             }
-        };
+        } else {
+            binding = {data : {}};
+        }
 
-
-
-        $.johnny5 = {
-            strings : {
-              'en' : {
-                '_default' : 'Field is not valid'
-              }
-            },
-            setStrings : function(lang, translations) {
-                
-                if( !$.johnny5.strings[lang] )
-                    $.johnny5.strings = {};
-
-                for( var validator in translations )
-                    if( translations.hasOwnProperty(validator)) {
-                        if( !$.johnny5.strings[lang][validator] )
-                            $.johnny5.strings[lang][validator] = {};
-
-                        $.johnny5.strings[lang][validator] = $.extend($.johnny5.strings[lang][validator], 
-                            translations[validator]);
-                    }
-
-
+        if (attrValue !== undefined) {
+            binding = { data: {} };
+            // If the value is empty we'll use the default value from the rule, if available
+            if (attrValue === "") {
+                if (rule.options !== undefined && rule.options.value !== undefined) {
+                    attrValue = rule.options.value;
+                }
             }
-        };
+            binding['data']['value'] = attrValue;
+        }
 
+        if( binding || already_bound ) {
+            resolvedConfiguration._rules = {};
+            resolvedConfiguration._rules[rule.name] = 1;
+            attrData = {};
 
+            if (binding !== null ) {
+                attrs = $elm[0].attributes;
 
-        // Add built in validators
-        $.fn.johnny5('addValidator', {
-
-            security : {
-                strings : {
-                    'default' : 'Password does not meet requirements'
-                },
-                validate : function($elm, _options) {
-                    (!_options.data.security) && (_options.data.security = 4);
-                    (!_options.data.policy) && (_options.data.policy = 'luns');
-                    var specials = '!@#$%^&*()_+|~-=\‘{}[]:";’<>?,./';
-
-                    _options.data.policy = _options.data.policy.toLowerCase();
-                    _options.data.security = parseInt(_options.data.security);
-                    var _count = 0,
-                        _val = $elm.val();
-
-
-                    if( _options.data.policy.indexOf('l') != -1) {
-                        _count += ( _val.match(/[a-z]/) ? 1 : 0 );
-                    }
-
-                    if( _options.data.policy.indexOf('u') != -1)
-                        _count += ( _val.match(/[A-Z]/) ? 1 : 0 );
-
-                    if( _options.data.policy.indexOf('n') != -1)
-                        _count += ( _val.match(/\d/) ? 1 : 0 );
-
-
-                    if( _options.data.policy.indexOf('s') != -1) {
-                        var re = new RegExp("[" + specials.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&") + "]");
-                        if( _val.match(re) )
-                            _count++;
-                    }
-
-                    if( _count < _options.data.security)
-                        return 'default';
-
-                    return true;
-                }
-            },
-
-            //
-            // Required Validator
-            // macros: $extension
-            required : {
-                strings : {
-                    'default' : 'Field is required',
-                    'list' : 'You must select an item',
-                    'checkbox' : 'You must check this box',
-                    'radio' : 'You must select this option',
-                    'extensions' : 'The selected extension ({$extention}) is not allowed'
-                },
-
-                /**
-                 * [validate description]
-                 * @param  {[type]} $elm
-                 * @param  {[type]} _options
-                 * @return {[type]}
-                 */
-                validate : function($elm, _options){
-
-                    _options.data = $.extend({
-                        'index' : null,
-                        'value' : null
-                    },_options.data);
-                    
-                    if( $elm.prop('tagName') == 'SELECT' && $elm.prop('multiple')) {
-                        return $elm.find('option:selected').length > 0 ? true : 'list';
-                    } else if( $elm.prop('tagName') == 'SELECT' && !$elm.attr('multiple') && _options.data.index) {
-                        var index = parseInt(_options.data.index);
-                        if( !isNaN(index) )
-                            return $elm.find('option:selected').first().index() == index ? 'default' : true;
-                        else 
-                            $.error("required.index is not a number");
-                    } else if( $elm.prop('tagName') == 'SELECT' && !$elm.attr('multiple') && _options.data.value) {
-                        return $elm.find('option:selected').first().val() == _options.data.value ? 'default' : true;
-                    } else if( $elm.prop('tagName') == 'INPUT' && ($elm.attr('type') == 'checkbox' || $elm.attr('type') == 'radio' )) {
-                        return $elm.is(':checked') ? true : 'checkbox';
-                    } else if( $.trim($elm.val()).length > 0 && $elm.prop('tagName') == 'INPUT' && $elm.attr('type') == 'file' && _options.data.extensions) {
-
-                      var e = _options.data.extensions.split(','), pattern = "";
-                      for( var i=0; i < e.length; i++) {
-                        var ext = $.trim(e[i]);
-                        if( ext.indexOf('.') == 0)
-                            ext =  ext.substr(1);
-                        pattern += (pattern?"|":"") +  ext;
-                      }
-
-                      var r = new RegExp("\.(" + pattern + ")$");
-                      if( r.test($elm.val()) ) 
-                        return true;
-                      else {
-                        if( _options.data['extensions-msg'])
-                            return _options.data['extensions-msg'];
-                        else 
-                            return ['extensions', {
-                                extensions : _options.data.extensions,
-                                extension : $elm.val().substr( $elm.val().lastIndexOf('.') )
-                            }];
-                    }
-
-                    }
-                    return $.trim($elm.val()).length > 0;
-                },
-               
-                // We want to bind on the html5 required attribute
-                customBind : function($elm) {
-                    if( $elm.attr('required') ) {
-                        return true;
-                    }
-                },
-                onAfterBind : function($elm, _options) {
-
-                    if( $elm.prop('type').toLowerCase() == 'radio') {
-
-                        // Find all radios with the same name
-                        var confirm = $elm.data('confirmelement'),
-                        target = $(_options.target);
-
-                        var el = target.find("input[type='radio']").not('#' + $elm.attr('id'));
-                        
-                        el.addClass('required-ref').change(function() {
-                            $elm.johnny5('triggerValidation');
-                        })
-                    }
-                }
-            },
-
-            /**
-             * 
-             * @type {Object}
-             * Macros: parsed   - value parsed to a number 
-             */
-            number : {
-                strings : {
-                    'default' : 'Value is not a number'
-                },
-                
-                validate : function($elm, _options) {
-
-                     if( $elm.val().length == 0 ) 
-                        return true;
-
-                    if( _options.data['step'] == "any") {
-                        var n = 1.1;n = n.toLocaleString().substring(1, 2);
-                        var r = new RegExp("^\\d+(\\" + n + "\\d+|)$");
-                        if( !r.test($elm.val()) )
-                            return false
-                    } else if( !$elm.val().match(/^\d+$/ ) )
-                        return false;
-
-                    return true;
-                    
-                },
-                customBind : function($elm) {
-                    if( $elm.attr('type') == 'number' && $elm.prop('tagName') == 'INPUT' ) {
-                        return true;
-                    }
-                },
-                // For custom bindings the default value may not always
-                // be retreived from the data- attribute
-                onGetValue : function($elm) {
-                    if( $elm.attr('step') ) 
-                        return { step : $elm.attr('step') };
-                    return { step : 1 };
-                }
-            },
-
-            /**
-             * [url description]
-             * @type {Object}
-             */
-            url : {
-                strings : {
-                    'default' : 'Not a valid url'
-                },
-                validate : function($elm, _options) {
-                    return /^(https?|s?ftp):\/\/(((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:)*@)?(((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5]))|((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.?)(:\d*)?)(\/((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)+(\/(([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)*)*)?)?(\?((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)|[\uE000-\uF8FF]|\/|\?)*)?(#((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)|\/|\?)*)?$/i.test($elm.val());
-                },
-                customBind : function($elm) {
-                    if( $elm.attr('type') == 'url' && $elm.prop('tagName') == 'INPUT' ) {
-                        return true;
-                    }
-                }
-            },
-
-            /**
-             *
-             * Macros: $maxsize - human redable allowed size
-             *         $filesize    - human readable file size
-             *         $max         - rule value
-             * @type {Object}
-             */
-            max : {
-                strings : {
-                    'default' : 'Value too large',
-                    'number' : 'Number must be {$max} or lower',
-                    'select' : 'You can not select more than {$max} item(s)',
-                    'file' : 'File size{? ($filesize)|} is larger than {$maxsize|allowed}',
-                    'date' : "Date can not be later than {$max}"
-                },
-                validate : function($elm, _options) {
-
-                    var validators = $elm.data('j5v'),
-                        max = _options.data.max;
-
-                    if( $elm.prop('tagName') == 'SELECT' ) {
-     
-                        if( $elm.attr('multiple') ) {
-                            max = parseInt(max);
-                            if( $elm.find('option:selected').length > max  )
-                                return ['select', {
-                                    'max' : max
-                                }];
-                        }
-                        return true;
-                    }
-
-                    // No value? Let it validate.
-                    // Leave that to the required rule instead
-                    if( $elm.val().length == 0 ) 
-                        return true;
-
-                    if( $elm.attr('type') == 'file' ) {
-                        if( $elm[0].files && $elm[0].files.length > 0 ) {
-                            if(  $elm[0].files[0].size > parseInt(_options.data.max)) {
-                                 return ['file', {
-                                    'max' : max,
-                                    'file' : $elm[0].files[0].size,
-                                    'maxsize' : bytesToSize(_options.data.max),
-                                    'filesize' : bytesToSize($elm[0].files[0].size)
-                                }];
-                            } else 
-                                return true;
-                        }
-                    }
-
-
-                    if( $.inArray('date', validators) != -1 ) {
-                        var val = new Date($elm.val()),
-                            maxdate = new Date(_options.data.max);
-
-                        if(val.getTime() <= maxdate.getTime() )
-                            return true
-                        else 
-                            return 'date';
-                    }
-                    
-                    var max = _options.data.max, val = $elm.val();
-                    if( $elm.attr('step') == 'any') {
-                        val = parseFloat(val);
-                        max = parseFloat(max);
-                    } else {
-                        val = parseInt(val);
-                        max = parseInt(max);
-                    }
-
-                    if( val > max )
-                        return ["number", { max : max }];
-
-                    return true;
-
-                },
-                // For custom bindings the default value may not always
-                // be retreived from the data- attribute
-                onGetValue : function($elm) {
-                    if( $elm.attr('max') ) 
-                        return $elm.attr('max');
-                    return null;
-                },
-                customBind : function($elm) {
-                    if( $elm.attr('max') ) {
-                        return true;
-                    }
-                }
-            },
-            min : {
-                strings : {
-                    'text' : 'Value most be at least {$min} characters',
-                    'date' : 'Date must be at least {$min}',
-                    'number' : 'Number must be {$min} or higher',
-                    'month' : 'Month must be {$min} or higher',
-                    'week' : 'Week must be {$min} or higher',
-                    'file' : 'File size{? ($filesize)|} is smaller than {$minsize|allowed}',
-                    'list' : 'You must select at least {$min} item(s)'
-                },
-                validate : function($elm, _options) {
-
-                    var _lElementType = $elm.prop('type').toLowerCase(),
-                        _min = parseInt(_options.data.min);
-
-                    // Determine datatype
-                    if( $elm.prop('tagName') == 'SELECT' ) {
-                        if( !$elm.attr('multiple') )
-                            return true;
-
-                        if( $elm.find('option:selected').length < _min )
-                            return ['list', { min : _min }];
-                        return true;
-
-                    }
-
-                    if( _lElementType == 'text') {
-                        var _v = $elm.data('j5-opt');
-                        if( _v['number'] ) {
-                            _lElementType = "number";
-                        }
-                        if( _v['date'] ) {
-                            _lElementType = "date";
-                        }
-                    } 
-
-                    switch( _lElementType ) {
-                        case 'date':
-                            var d = new Date($elm.val()),
-                                minDate = new Date(_options.data.min);
-                                console.warn(minDate);
-                                $elm.data('j5-mindate', minDate);
-                            if( !isNaN(d.getTime()) ) {
-                                if( d.getTime() < minDate.getTime() )
-                                    return ['date', {min : _options.data.min }];
+                // Find the rest of the related attributes
+                for (attr_index = 0; attr_index < valjsLength(attrs) ; attr_index += 1) {
+                    attribute_name = attrs[attr_index].name;
+                    if (attribute_name.indexOf(attrName + '-') === 0 && attribute_name.length > attrName.length) {
+                        if(!attrs[attr_index].value) {
+                            // No value - then this is a boolean true
+                            attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = trueValue;
+                        } else {
+                            attrValue = attrs[attr_index].value;
+                            if( attrValue.toLowerCase() == "true" ) {
+                                attrValue = trueValue;
+                            } else if( attrValue.toLowerCase() == "false" ) {
+                                attrValue = falseValue;
                             }
-                            // Not a valid date? Then we don't care
-                            return true;
-                        break;
-                         case 'number':
-                            var num = parseInt($elm.val()),
-                                min = parseInt(_options.data.min);
-
-                            if( !isNaN(num) && !isNaN(min) ) {
-                                if( num < min )
-                                    return ['number', { min : min} ];
+                            // is it a msg?
+                            local_string = attrName + '-msg';
+                            if(attribute_name.indexOf(local_string) === 0) {
+                                if(attribute_name == local_string) {
+                                    attrData.msg = attrData.msg || {};
+                                    attrData.msg[keyNameDefault] = attrValue;
+                                } else if (attribute_name.indexOf(local_string + '-') !== -1) {
+                                    attrData.msg = attrData.msg || {};
+                                    attrData.msg[valjsAttributeNameToOptionName(attribute_name.substr((local_string + '-').length))] = attrValue;
+                                }
+                            } else {
+                                attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = attrValue ;
                             }
-                        break;
-                        case 'file':
-                            if( $elm[0].files && $elm[0].files.length > 0 ) {
-                                if(  $elm[0].files[0].size < parseInt(_options.data.min)) {
-                                     return ['file', {
-                                        'min' : min,
-                                        'file' : $elm[0].files[0].size,
-                                        'minsize' : bytesToSize(_options.data.min),
-                                        'filesize' : bytesToSize($elm[0].files[0].size)
-                                    }];
-                                } else 
-                                    return true;
-                            }
-                        break;
-                        default:
-
-                            // No value? Let it validate.
-                            // Leave that to the required rule instead
-                            if( $elm.val().length == 0 ) 
-                                return true;
-
-                            if( $elm.val().length < _min)
-                                return ['text', { min : _min}];
-                        break;
-                    }
-
-                    return true;
-                },
-
-                // For custom bindings the default value may not always
-                // be retreived from the data- attribute
-                onGetValue : function($elm) {
-                    if( $elm.attr('min') ) 
-                        return $elm.attr('min');
-                    return null;
-                },
-                customBind : function($elm) {
-
-                    if( $elm.attr('min')  ) {
-                        return true;
-                    }
-                }
-            },
-
-
-            /**
-             * 
-             * @type {Object}
-             */
-            pattern : {
-                strings : {
-                    'default' : 'Please match the requested format {$title}'
-                },
-                validate : function($elm, _options) {
-                    if($elm.val().length == 0)  return true;
-
-                    if( _options.data.pattern ) {
-                        var r = new RegExp( _options.data.pattern);
-
-                        if( !r.test($elm.val()) ) {
-                            return ['default', {
-                                title : $elm.attr('title')
-                            }];
-                        }
-
-                    }
-                    return true;
-                },
-                customBind : function($elm) {
-
-                    if( $elm.attr('pattern') ) {
-                        return true;
-                    }
-                },
-                // For custom bindings the default value may not always
-                // be retreived from the data- attribute
-                onGetValue : function($elm) {
-                    if( $elm.attr('pattern') ) 
-                        return $elm.attr('pattern');
-                    return null;
-                }
-
-            },
-            confirm : {
-                strings : {
-                    'default' : 'Values do not match'
-                },
-                validate : function($elm, _options) {
-                    //if($elm.val().length == 0) return true;
-
-                    var confirm = $elm.data('confirmelement');
-
-                   
-                    if( confirm ) {
-                        if( confirm.val() != $elm.val() )
-                            return 'default';
-                    }
-
-                    return true;
-                },
-                onAfterBind : function($elm, _options) {
-                    var confirm = $elm.data('confirmelement'),
-                    target = $(_options.target);
-                    if( _options.data.confirm.indexOf('#') == 0)
-                        confirm = $(_options.data.confirm);
-                    else {
-                        confirm = target.find(_options.data.confirm);
-                        if(confirm.length == 0) {
-                            confirm = target.find("input[name='" + _options.data.confirm + "']")
                         }
                     }
-                    
-                    if(!confirm) {
-                        $.error("[j5.confirm] Element not found: " + _options.data.confirm);
-                    } else {
-                        $elm.data('confirmelement', confirm);
-                    
-                        confirm.keyup('keyup change blur', function() {
-                            $elm.johnny5('triggerValidation');
-                        })
-                    }
-
-
                 }
+            }
+
+            resolvedConfiguration = valjsExtend(trueValue, {}, resolvedConfiguration, binding['data'], attrData);
+            if (resolvedConfiguration.msg !== undefined) {
+                resolvedConfiguration.msg = valjsGetMsgConfig(resolvedConfiguration.msg);
+            }
+        }
+
+        return resolvedConfiguration;
+    }
+
+    function valjsGetMsgConfig(msgObject, existingObject) {
+        //console.error(msgObject, existingObject);
+        
+        if (typeof existingObject === "string") {
+            existingObject = {
+                'error' : existingObject
+            };
+        }
+        if (valjsIsFunction(msgObject)) {
+            msgObject = {
+                'error' : msgObject
+            };
+        }
+        
+        if( typeof msgObject === "string" ) {
+            if (existingObject === undefined) {
+                msgObject = { 'error' : msgObject }
+            } else {
+                msgObject = valjsExtend(trueValue, { 'error' : msgObject }, existingObject);
+            }
+        } else if( msgObject === undefined ) {
+            return existingObject;
+        } else if( typeof msgObject === "object") {
+            msgObject = valjsExtend(trueValue, {}, msgObject, existingObject);
+        
+        } else {
+
+            if (console && console.error) {
+                console.error("valjsGetMsgConfig", msgObject, existingObject);
+            }
+        }
+
+        return msgObject;
+    }
+
+    /**
+     * [valjsInitializeElementRules description]
+     * @param  {*} valjs [description]
+     * @param  {*} $elm  [description]
+     * @return {*}       [description]
+     */
+    function valjsInitializeElementRules(valjs, $elm) {
+       
+        var rules = wj.rules,
+            ret = { k: [] },
+            e,
+            customBindResult,
+            ruleName,
+            /** @type {string} */
+            attrName,   // base name for the rule attribute
+            binding,
+            attrs,
+            attrValue,
+            rule_index,    // Iterator
+            attr_index,
+            global_js = wj.defaults,
+
+            // Global configuration
+            cfgGlobalFieldRule,
+            cfgGlobalFindFunctions,
+            cfgGlobalMsg,
+
+            // Instance configuration
+            cfgInstanceGlobal = {},     // From config when you initialize valjs
+            cfgInstanceFieldRule,
+            cfgInstanceGlobalMsg,
             
-            },
+            // Field level configuration
+            cfgFieldGlobal = {},
+            cfgFieldRule = {},
+            cfgFieldAttr = {},
+            elmConfig = {},
+            ruleOptions,
+            attrData,
 
-            email : {
-                strings : {
-                    'default' : 'Not a valid e-mail address'
-                },
-                validate : function($elm, _options) {
-                    
-                    // No value? Let it validate.
-                    // Leave that to the required rule instead
-                    if( $elm.val().length == 0 ) 
-                        return true;
+            allFieldRules = {}; // will contain extra attributes/data for the rule
 
-                    if( /^([0-9a-zA-Z]([-\.\w]*[0-9a-zA-Z])*@([0-9a-zA-Z][-\w]*[0-9a-zA-Z]\.)+[a-zA-Z]{2,9})$/.test($elm.val()) ) {
-                        return true;
-                    }
-                    return 'default';
-                },
-                beforeBind : function() {
-                    // Evaluate if the browser has built in support or not...
-                },
-                customBind : function($elm) {
-                    if( $elm.attr('type') == 'email' && $elm.prop('tagName') == 'INPUT' ) {
-                        return true;
-                    }
-                }
+        // Instance global rule
+        if (valjs.config.msg !== undefined) {
+            cfgInstanceGlobal.msg = valjsGetMsgConfig(valjs.config.msg);
+        }
+        cfgGlobalFindFunctions = valjsExtend({
+            findMsg : valjs.config.findMsg,
+            findLabel : valjs.config.findLabel
+        }, valjsGetElementFindFunctions(valjs, $elm, valjs.config));
 
-            },
-            date : {
-                strings : {
-                    'default' : 'Not a valid date'
-                },
-                validate : function($elm, _options) {
-                    var d = new Date($elm.val());
-                    if ( Object.prototype.toString.call(d) !== "[object Date]" )
-                        return 'default';
-                    
-                    if( isNaN(d.getTime()) )
-                        return 'default';
+        allFieldRules = { ruleNames : [], _field : $elm.attr('id')};
+        rule_index = valjsGetAttr($elm, "data-" + valjs.config.attrPrefix + 'msg');
+        if(rule_index) {
+            cfgFieldGlobal = {
+                msg : valjsGetMsgConfig(rule_index)
+            };
+        }
 
-                    return true;
-                },
-                beforeBind : function() {
-                    // Evaluate if the browser has built in support or not...
-                },
-                customBind : function($elm) {
-                    if( $elm.attr('type') == 'date' && $elm.prop('tagName') == 'INPUT' ) {
-                        return true;
-                    }
-                }
+        for (rule_index = 0; rule_index < valjsLength(rules.k) ; rule_index += 1) {
+            elmConfig = {};
+            ruleOptions = rules[rules.k[rule_index]].options !== undefined ? rules[rules.k[rule_index]].options : {};
+            cfgInstanceFieldRule = valjsGetElementConfig(valjs, $elm, rules.k[rule_index], valjs.config, falseValue);
+            elmConfig = valjsExtend(trueValue, {}, ruleOptions, cfgInstanceGlobal, cfgInstanceFieldRule, cfgFieldGlobal);
+            cfgFieldAttr = valjsGetElementConfigFromAttributes(valjs, $elm, rules[rules.k[rule_index]], valjs.config, elmConfig);
+            elmConfig = valjsExtend(trueValue,  elmConfig, cfgFieldAttr);
+            elmConfig.msg = elmConfig.msg || {};
+            //elmConfig.msg[keyNameDefault] = elmConfig.msg[keyNameDefault] || '';
 
+            if(elmConfig._rules !== undefined) {
+                delete elmConfig._rules;
+                allFieldRules.ruleNames.push(rules.k[rule_index]);
+                allFieldRules[rules.k[rule_index]] = elmConfig;
             }
+        }
+
+        allFieldRules._findMsgFn = cfgGlobalFindFunctions.findMsg;
+        allFieldRules._findLabelFn = cfgGlobalFindFunctions.findLabel;
+
+        // Sort field rules by rule priority
+        allFieldRules.ruleNames.sort(function(a, b) {
+            a = rules[a].prio;
+            b = rules[b].prio;
+            return a < b ? -1 : (a > b ? 1 : 0);
         });
 
-         window.johnny5 = {
-            defaults : {
-
-            }
+        var e = {
+            valjs:valjs,
+            elm : $elm,
+            config : allFieldRules
         };
 
-    })(jQuery, window);
-    console.warn(window);
+        if( valjs.config.setupField !== $.noop ) {
+            valjs.config.setupField(e);
+        }
+        return e.config;
+    }
+
+    /**
+     * [valjsBindElementRules description]
+     * @param  {*} valjs [description]
+     * @param  {*} elm   [description]
+     * @return {boolean}       [description]
+     */
+    function valjsBindElementRules(valjs, elm) {
+        var $elm = $(elm),
+            identifiedRules = valjsInitializeElementRules(valjs, $elm),
+            allRules = wj.rules,
+            globalConfig,
+            currentRule,
+            binding,
+            bindResult,
+            boundRules = [],
+            i_index,
+            instanceConfig,
+            gvaljs = wj.defaults,
+            ruleNames = identifiedRules.ruleNames,
+            $lbl = null;
+
+        // Clear the rule names. We set them back when they're bound
+        identifiedRules.ruleNames = [];
+
+        if(valjsLength(ruleNames)==0) {
+            return;
+        }
+
+        $elm.data(dataNameValjsConfig, identifiedRules);
+
+        for (i_index = 0; i_index < valjsLength(ruleNames) ; i_index += 1) {
+            currentRule = allRules[ruleNames[i_index]];
+            if (currentRule.bind === null || currentRule.bind === undefined || currentRule.bind === $.noop) {
+                bindResult = trueValue;
+            } else {
+                bindResult = currentRule.bind(valjsExtend(valjsGetFilteredJ5Object(valjs), 
+                    {
+                        valjs : valjs,
+                        element: $elm, 
+                        field : valjsGetElementType($elm),
+                        config : identifiedRules[currentRule.name], 
+                        rule : currentRule 
+                    }));
+            }
+
+            if (bindResult !== falseValue) {
+                if (typeof bindResult === "object") {
+                    identifiedRules[currentRule.name] = valjsExtend(trueValue, {}, identifiedRules[currentRule.name], bindResult);
+                }
+                identifiedRules.ruleNames.push(ruleNames[i_index]);
+            } else {
+                delete identifiedRules[ruleNames[i_index]];
+            }
+        }
+
+        delete identifiedRules._field;
+
+        identifiedRules.fieldType = valjsGetElementType($elm);
+
+        if (identifiedRules.ruleNames.length > 0) {
+            // This is where the element rules are all initialized
+            // and we can setup the field
+
+            identifiedRules.uid = valjsGetUniqueId();
+
+            i_index = $elm.data(dataNameValJsContext) ? '' : 'unknown';
+            valjsJsAddClass($elm, valjsGetClass(valjs, 'field', i_index ))
+                .data(dataNameValJsContext, valjs)          // Make sure the field has contact with the valjs context
+                .data(dataNameValjsConfig, identifiedRules) // Attach the rules for this field
+                .data(valjs.vars.off, 0);                   // Validation not disabled
+            
+            valjsSetClass(valjsFindLabelElement($elm, valjs), valjs, 'label', i_index);
+            return trueValue;
+        } else {
+                valjsCleanupElement($elm, valjs);
+        }
+
+        return falseValue;
+    }
+
+    function valjsGetUniqueId() {
+        ValJS._idCount++;
+        return ValJS._idCount;
+    }
+
+    function valjsGetElementBoundRules($elm) {
+        var rules = $elm.data(dataNameValjsConfig);
+        return rules;
+    }
+
+    function valjsGetFilteredJ5Object(valjs) {
+        return {
+            config: valjs.config,
+            context: valjs.jqContext,
+            form: valjs.$form
+        };
+    }
+    
+    function valjsGetValidationErrorInfo(rule, $elm, result, valjs) {
+        return {
+            rule: rule.name,
+            error: 'N/A'
+        };
+    }
+
+    function valjsStringChecksum(str) {
+        var hash = 5381, i, c;
+        for (i = 0; i < valjsLength(str) ; i += 1) {
+            c = str.charCodeAt(i);
+            hash = ((hash << 5) + hash) + c;
+        }
+        return hash;
+    }
+
+    /**
+     * [valjsInvokeEvent description]
+     * @param  {{trigger : function(*)}} target  [description]
+     * @param  {string} name    [description]
+     * @param  {*} options [description]
+     * @return {*}         [description]
+     */
+    function valjsInvokeEvent(target, name, options) {
+        var newEvent = jQuery.Event(name + eventNamespace, options);
+        target.trigger(newEvent);
+        return newEvent;
+    }
+
+    /**
+     * [valjsFindMsgElement description]
+     * @param  { { nextAll : function(string) : {insertAfter : function(*)} } | * } $elm   [description]
+     * @param  {*} valjs  [description]
+     * @param  {boolean} create [description]
+     * @return {*}        [description]
+     */
+    function valjsFindMsgElement(options) {
+        var $elm = options.element,
+            valjs = options.valjs,
+            create = options.create,
+            $after = null,
+            $msg = valjs.jqContext.find("[data-msg-for='" + $elm.attr('id') + "']");
+
+        if(!valjs.config.elements || !valjs.config.elements.msg) {
+            
+        } else if(valjsLength($msg) == 0) {
+            $after = $elm.parent().prop('tagName') === 'LABEL' ? $elm.parent() : $elm;
+            $msg = $after.next('.' + valjs.config.elements.msg);
+        }
+        
+        if (valjsLength($msg) === 0 && create) {
+            if( valjs.config.createMsg ) {
+                $msg = $('<span>');
+                $msg = $msg.insertAfter($after);
+            }
+        }
+        
+        if (create) {
+            $msg.show();
+        }
+        return $msg;
+    }
+
+    function valjsFindLabelElement($elm, valjs) {
+        var labelElement = valjsSelectElements("label[for='" + $elm.attr('id') + "']", valjs.jqContext);
+        if  (labelElement.length === 0) {
+            if ($elm.parent().get(0).nodeName == 'LABEL') {
+                labelElement = $elm.parent();
+            }
+        }
+        return labelElement;
+    }
+
+    /**
+     * [valjsRefreshField description]
+     * @param  {*} valjs   [description]
+     * @param  {*} $elm    [description]
+     * @param  {*} refresh [description]
+     * @return {*}         [description]
+     */
+    function valjsRefreshField(valjs, $elm, refresh) {
+        /** @type { {hide : function()} | * } */
+        var $msg;
+        var status = refresh.status,
+            elmConfig = $elm.data(dataNameValjsConfig),
+            state = refresh.state,
+            message = refresh.message,
+            modifers = null,
+            hasMsg = message !== "",
+            createMsg = hasMsg && status === 'invalid',
+            $lbl,
+            hideMsg = falseValue;
+
+        $lbl = valjsFindLabelElement($elm, valjs);
+        
+
+        if (status === 'valid') {
+            modifers = 'valid';
+            hideMsg = trueValue;
+        } else {
+            if (status == 'unknown') {
+                modifers = 'unknown';
+                hideMsg = trueValue;
+            } else {
+                modifers = ['invalid', state];
+                hideMsg = falseValue;
+            }
+        }
+
+        refresh.ruleConfig = elmConfig[refresh.rule];
+
+        $msg = invokeElementFindMsgFunction({ 
+            element : $elm, 
+            valjs : valjs, 
+            create : createMsg, 
+            validation : refresh
+        });
+
+        if (valjsLength($msg) == 1) {
+            if (hideMsg) {
+                $msg.html('').hide();
+            } else {
+                $msg.html(message)
+            }
+            $elm.data(dataNameValjsElementMsg, $msg);
+            valjsSetClass($msg, valjs, 'msg', modifers);
+        }
+
+        valjsSetClass($elm, valjs, 'field', modifers);
+        if( valjsLength($lbl) == 1) {
+             valjsSetClass($lbl, valjs, 'label', modifers);   
+        }
+        return $elm;
+    }
+
+    function valjsTestIsElementReadyForValidation($elm) {
+        return $elm.is(':visible') && !$elm.is(':disabled');
+    }
+
+    function valjsCleanArray(arr) {
+        var i, newarr = [];
+        for (i = 0; i < valjsLength(arr); i += 1 ) {
+            if ( arr[i] !== null && arr[i] !== undefined) {
+                newarr.push(arr);
+            }
+        }
+        return newarr;
+    }
+
+    function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit) { // , valjs, event
+        if (valjs.config.liveValidation === falseValue && !submit) {
+            return;
+        }
+        if (!valjsTestIsElementReadyForValidation($elm)) {
+
+            if ($elm.data(dataNameValJsHash)) {
+                valjsResetElementStatus($elm, valjs);
+            }
+            return;
+        }
+
+        var rules = valjsGetElementBoundRules($elm),
+            ruleNames = rules ? rules.ruleNames : null,
+            rule_index,
+            currentRule,
+            namedMessage,
+            config,
+            result,
+            execParameters = {},
+            resultObject,
+            validations = { fail: [], success: [] },
+            e,
+            refreshData = {},
+            statusHash = [],
+            hashString = "",
+            previousHash = $elm.data(dataNameValJsHash);
+
+        if (submit === undefined) {
+            submit = falseValue;
+        }
+
+
+        if (elementValue === undefined) {
+            elementValue = valjsGetElementValue($elm, event);
+        }
+
+        for (rule_index = 0; rule_index < valjsLength(ruleNames) ; rule_index += 1) {
+            currentRule = wj.rules[ruleNames[rule_index]];
+            config = rules[ruleNames[rule_index]];
+
+            execParameters = {
+                'event': event,
+                'config': config,
+                'valjs': valjs,
+                'element' : $elm,
+                'field': valjsExtend({ value: elementValue.value }, valjsGetElementType($elm))
+            };
+
+            result = currentRule.run(execParameters, $elm);
+            
+            if (result !== trueValue && (typeof result !== "object" || result.msg)) {
+
+                if (typeof result === "boolean") {
+                    namedMessage = keyNameDefault
+                } else if (typeof result === "object") {
+                    namedMessage = result.msg;
+                } else if (typeof result === "string") {
+                    namedMessage = result;
+                }
+                execParameters = {
+                    valjs: valjs,
+                    config : config,
+                    rule : currentRule,
+                    element : $elm,
+                    msgName : namedMessage
+                }
+                if (typeof result === "object") {
+                    resultObject = valjsExtend(trueValue, {}, result);
+                    delete resultObject.msg;
+                    execParameters.result = resultObject;
+                }
+
+                // If the rule default error message is null, then
+                // it should be used if it's been specified otherwhere
+                if (currentRule.options && currentRule.options.msg && currentRule.options.msg[keyNameDefault] === null) {
+                    if (config.msg[keyNameDefault] !== null) {
+                        namedMessage = keyNameDefault;
+                    }
+                }
+
+                if (valjsIsFunction(config.msg)) {
+                    result = config.msg(execParameters);
+                } else if (config.msg !== undefined && config.msg[namedMessage] !== undefined){
+                    if(valjsIsFunction(config.msg[namedMessage])) {
+                        result = config.msg[namedMessage](execParameters);
+                    } else if (typeof namedMessage === "string") {
+                        result = config.msg[namedMessage];
+                    }
+                }
+
+                statusHash.push(currentRule.name + result);
+                validations.fail.push({
+                    rule: currentRule.name,
+                    msg: result
+                });
+            } else {
+                validations.success.push({ rule: currentRule.name, result : result });
+            }
+        }
+
+        //
+        // Create a hash based on status
+        // Only raise events when things have actually changed
+        //
+        hashString = valjsStringChecksum((submit ? '1' : '0') + statusHash.join('|'));
+        if (submit) {
+            // Submit, then we always check
+            hashString = (new Date());
+        }
+
+        if (previousHash === hashString && valjs.config.alwaysTriggerFieldEvents === falseValue) {
+
+            return $elm.data(dataNameValjsValidationStatus);
+        }
+        $elm.data(dataNameValJsHash, hashString);
+
+        // The event listeners can clear the validation
+        // details entirely, we take that as a "the field is valid!"
+        if (valjs !== undefined && valjsLength(validations.fail) > 0) {
+            refreshData = {
+                status: 'invalid',
+                state: submit ? 'error' : 'warning',
+                message: validations.fail[0].msg,
+                rule: validations.fail[0].rule
+            };
+            var label = valjsFindLabelElement($elm, valjs);
+            if(label) {
+                refreshData.label = label.text();
+            }
+            $elm.data(dataNameValJsIsValid, -1);
+        } else {
+            refreshData = { status: 'valid' };
+            $elm.data(dataNameValJsIsValid, 1);
+        }
+
+        $elm.data(dataNameValjsValidationStatus, refreshData);
+
+        e = valjsInvokeEvent($elm, 'refreshfield', {
+            valjs: valjsExtend(refreshData, { context : valjs.jqContext, form : valjs.$form, element : $elm})
+        });
+
+        if (!e.isDefaultPrevented()) {
+            valjsRefreshField(valjs, $elm, refreshData);
+        }
+
+        return $elm.data(dataNameValJsIsValid) === 1 ? trueValue : refreshData;
+
+    }
+
+    function valjsTestElementIsBound($elm) {
+        return $elm.data(dataNameValjsConfig) ? trueValue : falseValue;
+    }
+
+    function valjsTestElementChange(e) {
+        if(!valjsTestElementIsBound($(this))) {
+            return;
+        }
+        var valueInfo = valjsGetElementValue($(this), e);
+        // has the value been updated since last time?
+        
+        if (valueInfo.upd === trueValue ) { //|| e.type === 'focusout'
+            valjsInvokeElementValidation($(this), e.data.valjs, e, valueInfo);
+        }
+    }
+
+    /**
+     * This will reference the current valjs context
+     * in the form-element before it is submitted via
+     * hitting the Enter key in a field, or clicking the
+     * submit button for the context in question
+     * @return {[type]} [description]
+     */
+    function valjsSetFormContext(e) {
+        var valjs = e.data.valjs,
+            form = valjs.$form;
+
+        if ($(e.target).prop('tagName') === 'TEXTAREA')
+            return;
+
+        form.data(dataNameValJsFormContext, valjs);
+
+        if (e.type === 'keydown') {
+            if (e.keyCode === 13) {
+                form.data(dataNameValJsFormContext, valjs);
+                if (valjsLength(valjs.s) > 0) {
+                    e.preventDefault();
+                    $(valjs.s).first().trigger('click');
+                } else {
+                    if (valjsLength(form.find(submitQuery)) === 0) {
+                        e.preventDefault();
+                        form.trigger('submit');
+                        return;
+                    }
+                }
+            }
+        }
+
+    }
+
+
+    function valjsValidateForm(valjs, e, submit) {
+        var i, valueInfo, field, validationResult, ret = { invalid: [] },
+            len = valjsLength(valjs.e);
+        for (i = 0; i < len; i += 1) {
+            field = $(valjs.e[i]);
+            valueInfo = valjsGetElementValue(field, e);
+            validationResult = valjsInvokeElementValidation(field, valjs, e, valueInfo, submit === trueValue ? trueValue : falseValue);
+            if (validationResult !== undefined && validationResult !== trueValue && validationResult.status === 'invalid') {
+                ret.invalid.push(validationResult);
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * Serialize a form or part of a form into a key-value object
+     * @param  object $elm The jQuery element
+     * @return object      The final object
+     */
+    function valjsFormSerialize($elm) {
+        var serializedArray = $elm.find('input,select,textarea,button').serializeArray(),
+            returnObject = {};
+        for( var i=0; i < valjsLength(serializedArray); i++) {
+            returnObject[serializedArray[i].name] = serializedArray[i].value;
+        }
+        return returnObject;
+    }
+
+    function valjsFormSubmit(e, options) {
+
+        if (options && options.valjsDone === trueValue) {
+            // If ValJS's work is done, then we'll let the event go through
+            return trueValue;
+        }
+
+        var valjs = $(this).data(dataNameValJsFormContext),
+            result = null,
+            submitEvent,
+            eventContext;
+
+        if (!valjs) {
+            // No current context, then do nothing by triggering an event that says that ValJS is done
+            e.preventDefault();
+            $(this).trigger('submit', { valjsDone: trueValue });
+            return trueValue;
+        }
+
+        eventContext = valjs.jqContext;
+
+        $(this).removeData(dataNameValJsFormContext)
+
+        // We have a ValJS context. Let's validate it!
+        result = valjsValidateForm(valjs, e, trueValue);
+        console.warn(result);
+        // Any invalid results?
+        if (valjsLength(result.invalid) === 0) {
+            // Validation succeeded. Trigger the submitform event
+            submitEvent = valjsInvokeEvent(eventContext, 'submitform',
+                {
+                    currentTarget : valjs.context,
+                    target: valjs.$form[0],
+                    valjs: valjsExtend({}, result, { form : valjs.$form[0], context : valjs.context }),
+                    formData : valjsFormSerialize(valjs.jqContext)
+                });
+            if (submitEvent.isDefaultPrevented()) {
+                // If the submit is stopped from the ValJS Event
+                e.preventDefault();
+            } else {
+                // otherwise submit the form
+                $(this).trigger('submit', { valjsDone: trueValue });
+            }
+            return;
+        } else {
+            valjsInvokeEvent(eventContext, 'invalidform',
+                {
+                    target: valjs.context,
+                    valjs: valjsExtend({}, result, { form : valjs.$form[0], context : valjs.context })
+                });
+            $(this).removeData(dataNameValJsFormContext)
+        }
+        e.preventDefault();
+        return false;
+    }
+
+    function valjsGetEventNames(names) {
+        var ret = [], i;
+        for (i = 0; i < valjsLength(names) ; i += 1) {
+            ret.push(names[i] + eventNamespace);
+        }
+        return ret.join(' ');
+    }
+
+    function valjsBindElementEvents(valjs) {
+        //var t = valjsGetElementType($elm);
+
+        var textElements = 'textarea, ' +
+            'input:not([type=checkbox], [type=radio], [type=submit], [type=button])',
+            listElements = selectTypeName,
+            cbxElements = 'input[type=checkbox], input[type=radio]';
+
+        if (!valjs.$form.data(dataNameValJsBound)) {
+            valjs.$form.data(dataNameValJsBound, 1);
+            valjs.$form.on(valjsGetEventNames(['submit']), { valjs: valjs }, valjsFormSubmit);
+        }
+
+        valjs.jqContext
+            //.off( eventNamespace)
+            .on(valjsGetEventNames([clickEvent, changeEvent, keyupEvent, blurEvent]), textElements, { valjs: valjs }, valjsTestElementChange)
+            .on(valjsGetEventNames([keydownEvent]), { valjs: valjs }, valjsSetFormContext)
+            .on(valjsGetEventNames([clickEvent, changeEvent]), listElements, { valjs: valjs }, valjsTestElementChange)
+            .on(valjsGetEventNames([clickEvent, changeEvent]), cbxElements, { valjs: valjs }, valjsTestElementChange);
+
+        $(valjs.s)
+            //.off(eventNamespace)
+            .on(valjsGetEventNames([clickEvent]), { valjsSubmit: trueValue, valjs: valjs }, valjsSetFormContext);
+
+    }
+
+    function valjsInitializeModifierShortcuts(config) {
+        var elementTypes = config.elements,
+            suffixes = config.modifiers || {},
+            modifiers = [],
+            clean,
+            type_index,
+            suffix_index,
+            i_index,
+            result = {},
+            prefix = null;
+
+        for (suffix_index in suffixes) {
+            if (suffixes.hasOwnProperty(suffix_index)) {
+                modifiers.push(suffix_index);
+            }
+        }
+
+        for (type_index in elementTypes) {
+            if (elementTypes.hasOwnProperty(type_index)) {
+                clean = [];
+                for (i_index = 0; i_index < valjsLength(modifiers) ; i_index += 1) {
+                    clean.push( (config.modifierSeparator ? elementTypes[type_index] + config.modifierSeparator : '') + suffixes[modifiers[i_index]]);
+                }
+                result[type_index] = clean.join(' ');
+            }
+        }
+        return result;
+    }
+
+    function valjsCleanupElement($elm, valjs) {
+        var $msg = invokeElementFindMsgFunction($elm, valjs, falseValue),
+            $label = valjsFindLabelElement($elm, valjs);
+        if ($msg) {
+            $msg.hide();
+        }
+        valjsRemoveClass($elm, valjsGetClass(valjs, 'field'));
+        valjsRemoveClass($elm, valjs.vars.field);
+        if ($label)
+         {
+            valjsRemoveClass($label, valjsGetClass(valjs, 'label'));
+            valjsRemoveClass($label, valjs.vars.label);
+        }
+        valjsRemoveClass($elm, dElmType);
+        valjsRemoveClass($elm, dataNameValJsInstance);
+        valjsRemoveClass($elm, dataNameValjsConfig);
+        valjsRemoveClass($elm, dataNameValJsContext);
+        valjsRemoveClass($elm, dataNameValJsHash);
+        valjsRemoveClass($elm, dataNameValJsIsValid);
+        valjsRemoveClass($elm, dataNameValjsValidationStatus);
+        valjsRemoveClass($elm, dataNameValJsValueCache);
+    }
+
+    function valjsRemoveClass($elm, className) {
+        $elm.removeClass(className);
+    }
+
+    function valjsRemoveData($elm, dataName) {
+        $elm.removeData(dataName);
+    }
+
+    function valjsResetElementStatus($elm, valjs) {
+        valjsRemoveData($elm, dataNameValJsHash);
+        valjsRemoveData($elm, dataNameValJsIsValid);
+        valjsRemoveData($elm, dataNameValjsValidationStatus);
+        
+        var refreshData = { status: 'unknown' },
+            e = valjsInvokeEvent($elm, 'refreshfield', {
+                valjs: valjsExtend(refreshData, { context : valjs.jqContext, form : valjs.$form, element : $elm})
+            });
+
+        if (!e.isDefaultPrevented()) {
+            valjsRefreshField(valjs, $elm, refreshData);
+        }
+    }
+
+
+    function valjsFindInputByNameOrSelector($target, name) {
+        var elm = null;
+        if (valjsIndexOf(name, '#') == 0) {
+            return $(name);
+        }
+        elm = $target.find('[name="' + name + '"]');
+        if (valjsLength(elm) === 0) {
+            elm = $target.find(name).first();
+        }
+        return elm;
+    }
+
+    function valjsRefreshElementBindings(valjs) {
+        var cssSelectors = valjs.config.selector,
+            elms,
+            element_index;
+
+        valjs.e = [];
+
+        // 
+        // Identify and bind validation rules for the elements
+        //
+        elms = valjsSelectElements(cssSelectors.elements, valjs.context);
+        for (element_index = 0; element_index < valjsLength(elms) ; element_index += 1) {
+            if (valjsBindElementRules(valjs, elms[element_index])) {
+                valjs.e.push(elms[element_index]);
+            }
+        }
+
+        // 
+        // Attach event listeners for any elements with rules
+        //
+        valjsBindElementEvents(valjs);
+    }
+
+
+    /**
+     * Get the file length in a human readable format
+     * @param  {[type]} bytes [description]
+     * @return {[type]}       [description]
+     *
+     * Slightly modified version of
+     * https://forrst.com/posts/vaScript_nice_file_size_bytes_to_human_read-tQ3
+     */
+    function valjsFormatBytes(bytes) {
+        if (bytes === 0) {
+            return 'n/a';
+        }
+        var sizes = ' KMGTPEZY',
+            i = valjsParseIntBase10(Math.floor(Math.log(bytes) / Math.log(1024)));
+        return Math.round(bytes / Math.pow(1024, i), 2) + (i > 0 ? ' ' : '') + (i > 0 ? sizes[i] + 'iB' : ' bytes');
+    }
+
+    ValJS.prototype = {
+        // Default settings
+        defaults: {
+            'elements': {
+                'submit': 'valjs__submit',
+                'field': 'valjs__field',    // Base class for fields
+                'form': 'valjs__form',      // Base class for forms
+                'label': 'valjs__label',    // Base class for labels
+                'msg': 'valjs__msg',        // base class for messages
+                'context': 'valjs__context' // Base class for context
+            }, // /modifierClassSuffix
+
+            //
+            // Set to true to check for new input elements even
+            // if valjs was already active for the specified context
+            // 
+            alwaysTriggerFieldEvents: falseValue,
+            
+            liveValidation : trueValue,
+            
+            createMsg : trueValue, // Set to false to never create new message elements 
+            
+            modifierSeparator : null,
+
+            attrPrefix : '',
+
+            findMsg : valjsFindMsgElement,
+            findLabel : valjsFindLabelElement,
+
+            allowRuleInitialization : trueValue,
+
+            setupField : $.noop,
+
+            /**
+            * Modifiers
+            * These are always used in combination with elementClassNames.
+            *
+            * Example:
+            *  A field will get the class: 'valjs__field valjs__field--unknown' when it's created
+            *  When it's validated will have 'valjs__field valjs__field--valid'
+            *  When not validated it will have 'valjs__field valjs__field--invalid' - plus a valjs__field--error OR valjs__field--warning
+            */
+            'modifiers': {
+                'valid': 'valjs-valid',
+                'invalid': 'valjs-invalid',
+                'unknown': 'valjs-unknown',
+                'error': 'valjs-error',
+                'warning': 'valjs-warning'
+            }, // /modifierClassSuffix
+
+            'selector': {
+                'elements': 'input:not([type=submit], [type=button]),select,textarea',
+                'submit': submitQuery
+            },
+
+            'submitform' : $.noop
+        }, // /defaults
+
+        ruleDefaults: {
+            /**
+             * If the rule is not found by ValJS for an element then testElement is called to
+             * let the rule itself have an extra look to decide weather or not to bind it
+             * It can also return default settings that can be configurable via attributes
+             * 
+             * @type {[type]}
+             */
+            testElement: $.noop,
+
+            /**
+             * The bind function binds the rule to the element. Return false if
+             * the binding should not be bound
+             * @type {[type]}
+             */
+            bind: $.noop,
+
+            /**
+             * The rules will be sorted by priority before executed
+             * @type {Number}
+             */
+            prio : 100,
+
+            /**
+             * Run the rule in the validation process
+             * @type {[type]}
+             */
+            run: $.noop,
+            options : { value : trueValue },
+
+            findMsg : $.noop
+        },
+
+        /**
+         * Reset a field to its unknown status
+         * @return {[type]} [description]
+         */
+        resetField: function () {
+            var valjs = $(this).data(dataNameValJsContext);
+            console.warn(valjs);
+            valjsResetElementStatus($(this), valjs);
+        },
+
+        validateField: function () {
+            
+            var valjs = $(this).data(dataNameValJsContext),
+                value = valjsGetElementValue($(this));
+
+
+            valjsInvokeElementValidation($(this), valjs, value);
+        },
+
+        getFieldStatus : function() {
+            var status = $(this).data(dataNameValJsIsValid);
+            if (status === undefined) {
+                return 0
+            }
+            return status;
+        },
+
+        getFieldType : function() {
+            return valjsGetElementType($(this));
+        },
+
+        updateBindings : function() {
+            var ctx = $(this).data(dataNameValJsContext),
+            valjs = $(this).data(dataNameValJsInstance);
+            valjsRefreshElementBindings(valjs);
+        },
+
+        init: function () {
+
+            this.config = valjsExtend(trueValue, {}, this.defaults, ValJS.global, this.options);
+            var self = this,    // so we can initialize valjs asyncronosly
+                cssSelectors = this.config.selector,
+                elms,       // Will hold all elements in context before they're bound
+                element_index;    // 
+
+            // Cache classnames to easily clear an element from statuses
+            this.vars = valjsInitializeModifierShortcuts(this.config);
+
+            if (this.jqContext.prop('tagName') === 'FORM') {
+                this.$form = this.jqContext;
+            } else {
+                this.$form = this.jqContext.closest('form');
+                if (this.$form.data(dataNameValJsInstance)) {
+                    //                        window.console && window.console.warn(this.jqContext);
+                    throw "valjs: form/context conflict";
+                }
+            }
+
+            valjsJsAddClass(this.jqContext, valjsGetClass(this, 'context'));
+            valjsJsAddClass(this.$form.attr('novalidate', ''), valjsGetClass(this, 'form'));
+            // Find all submit buttons
+            this.s = $(valjsSelectElements(cssSelectors.submit, this.jqContext));
+            valjsJsAddClass(this.s, valjsGetClass(this, 'submit'));
+
+            if(this.config.submitform) {
+                if(this.config.submitform != $.noop) {
+                    this.jqContext.on('submitform.valjs', this.config.submitform);
+                }
+            }
+
+            // Run initialization async if init is a function
+            if(valjsIsFunction(this.config.init)) {
+                setTimeout(function() {
+                    valjsRefreshElementBindings(self);
+                    self.config.init(self);
+                }, 1);
+            } else {
+                valjsRefreshElementBindings(self);
+            }
+
+            return this;
+        },
+
+        /**
+         * Make sure potentially new elements are also
+         * included.
+         * @return {[type]} [description]
+         */
+        refresh: function () {
+            valjsRefreshElementBindings(this);
+        },
+
+        /**
+         * Check if the element has the specified rule
+         * @param  {string} ruleName The name of the rule
+         * @return {boolean}          True if the rule exists for this field
+         */
+        hasRule : function(ruleName) {
+
+            if (typeof ruleName === "string") {
+                ruleName = [ruleName];
+            }
+
+            var cfg = $(this).data(dataNameValjsConfig),i;
+            if(cfg) {
+                for (i = 0; i < ruleName.length; i += 1) {
+                    if (cfg.hasOwnProperty(ruleName[i])) {
+                        return trueValue;
+                    }
+                }
+            } else {
+                $.error(msgValJSNotFound, $(this));
+            }
+            return falseValue;
+        },
+
+        /**
+         * To disable validation for elements matching the selector
+         * @param  {[type]} selector
+         * @return {[type]}
+         */
+        disable: function (selector) {
+            if (this.valjsv) {
+                // find was faster than filter...
+                var elements = this.$elm.find(selector);
+                elements.data(this.vars.off, 1);
+            }
+        }
+    };
+
+    /*function _callByChildElement(method, obj, args, index) {
+        console.warn(method);
+        console.warn(obj);
+        console.warn(args);
+        $(obj).addClass('valjs__field--off')
+        return this;
+    }*/
+
+    ValJS._idCount = 0;
+    ValJS.ruleDefaults = ValJS.prototype.ruleDefaults;
+    ValJS.global = {};
+    ValJS.addRule = valjsAddRule;
+    ValJS.rules = { k: [] };
+
+    function valjsCallByChildElement(o, i, args) {
+        return ValJS.prototype[o].apply($(i), args);
+    }
+
+    /**
+     * [valjsExtend description]
+     * @return {[type]} [description]
+     */
+    function valjsExtend() {
+        var args = Array.prototype.slice.call(arguments);
+        return $.extend.apply($, args);
+    }
+
+    /**
+    * Hook it up as a jQuery Plugin
+    */
+    $.fn.valjs = function (options) {
+        if (ValJS.prototype[options]) {
+            // only call methods on created objects
+            if ($(this).data(dataNameValJsInstance)) {
+
+                return ValJS.prototype[options]
+                    .apply($(this), Array.prototype.slice.call(arguments, 1));
+            } else {
+                var args = Array.prototype.slice.call(arguments, 1),
+                    ret = this.map(function (i) {
+                        return valjsCallByChildElement(options, this, args, i);
+                    });
+                if( ret.length == 1 ) {
+                    return ret[0];
+                }
+                return ret;
+            }
+        } else {
+            if (typeof options === 'object' || !options) {
+                return this.each(function () {
+                    if ($(this).data(dataNameValJsInstance)) {
+                        $(this).valjs('updateBindings');
+                        return this;
+                    } else {
+                        new ValJS(this, options || {}).init();
+                    }
+                });
+            }
+            $.error('No ValJS method ' + options);
+        }
+    };
+
+    /*
+     * Here are the built in rules
+     * 
+     * 
+     */
+
+     // http://stackoverflow.com/questions/16590500/javascript-calculate-date-from-week-number#answer-16591175
+    /**
+     * Calculate date from a given week and year
+     * @param  {Number} w [description]
+     * @param  {Number} y [description]
+     * @return {Date}   [description]
+     */
+    function getDateOfISOWeek(y,w) {
+        var simple = new Date(y, 0, 1 + (w - 1) * 7);
+        var dow = simple.getDay();
+        var ISOweekStart = simple;
+        if (dow <= 4)
+            ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+        else
+            ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+        return ISOweekStart;
+    }
+
+    function valjsIndexOf(haystack, needle) {
+        if (haystack === undefined) {
+            return -1;
+        }
+        return haystack.indexOf(needle);
+    }
+
+    function valjsParseIntBase10(val) {
+        return parseInt(val, 10);
+    }
+
+    function valjsGetWeekYear(date) {
+        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+        return date.getFullYear();
+    }
+
+    function valjsDateWeek(date) {
+        date.setHours(0, 0, 0, 0);
+        // Thursday in current week decides the year.
+        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+        // January 4 is always in week 1.
+        var week1 = new Date(date.getFullYear(), 0, 4);
+        // Adjust to Thursday in week 1 and count number of weeks from date to week1.
+        return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    }
+
+    function valjsNewStandardDate(dateString) {
+        var data;
+        if (dateString === undefined) {
+            return null;
+        }
+        if (dateString === "now") {
+            return new Date();
+        }
+        if (dateString.indexOf(' ') !== -1) {
+            data = dateString.split(/[\s:-]/);
+            if (data.length == 5) {
+                return new Date( data[0], parseInt(data[1])-1, data[2], data[3], data[4]);
+            }
+            return null;
+        } else {
+            var data = dateString.split('-');
+            return new Date( data[0], parseInt(data[1])-1, data[2]);
+        }
+        
+    }
+
+    function valjsDateMinMax(valjsArgs, date, format, macros) {
+        var max = valjsExtractDateParts(valjsArgs.config.max, format, macros),
+            min = valjsExtractDateParts(valjsArgs.config.min, format, macros);
+        if (min && date < min.date) {
+            return 'min';
+        } else  if (max && date > max.date) {
+            return 'max';
+        }
+        return trueValue;
+    }
+
+    function valjsWeekMinMax(valjsArgs, data, format, macros) {
+        var max = valjsExtractDateParts(valjsArgs.config.max, format, macros),
+            min = valjsExtractDateParts(valjsArgs.config.min, format, macros);
+        if (min && data.date < min.date) {
+            return 'min';
+        } else  if (max && data.date > max.date) {
+            return 'max';
+        }
+
+        return trueValue;
+    }
+
+    function valjsExtractDateParts(dateString, format, macros) {
+
+        if (dateString === 'now') {
+            return {date: new Date()};
+        }
+        var i, n = 0,
+            macroPositions = [],
+            indexes = {},
+            pattern = '',
+            find,
+            replace,
+            isDate,
+            isDateTime,
+            isWeek,
+            isDateRelated,
+            matches,
+            ret = null,
+            d,
+            re;
+
+        for (i = 0; i < valjsLength(macros); i += 1) {
+            macroPositions.push([macros[i], valjsIndexOf(format, '%' + macros[i])]) ;
+            if (macros[i] == 'm') {
+                isDate = trueValue;
+            } else if (macros[i] == 'H') {
+                // One macro is hour, so it's a datetime
+                isDateTime = trueValue;
+            } else if (macros[i] == 'w') {
+                isWeek = trueValue;
+            }
+        }
+
+        isDateRelated = isDate || isDateTime;
+        isDate = !isWeek && !isDateTime;
+
+        macroPositions.sort(function(a, b) {
+            a = a[1];
+            b = b[1];
+            return a < b ? -1 : (a > b ? 1 : 0);
+        });
+
+        for( var i=0; i < macroPositions.length; i++) {
+            if( macroPositions[i][1] !== -1 ) {
+                indexes[macroPositions[i][0]] = n;
+                n++;
+            }
+        }
+        pattern = format.replace('.', '\\.').replace('(', '\\(').replace(')', '\\)').replace(/\\/g, '\\\\');
+
+        for (i=0; i < valjsLength(macros); i += 1) {
+            find = '%' + macros[i];
+            switch(macros[i]) {
+                case 'y': 
+                    replace = "(\\d{4})"; break;
+                default:
+                    replace = "(\\d{1,2})";
+                break;
+            }
+            pattern = pattern.replace(find, replace);
+        }
+        re = new RegExp( "^" + pattern + "$");
+        if (re) {
+            matches = re.exec(dateString);
+            if (matches) {
+                find = {};
+                for (i=1; i < matches.length; i++) {
+                    find[macroPositions[i-1][0]] = valjsParseIntBase10(matches[i]);
+                }
+
+                if (isDateRelated) {
+                    find.m -= 1;
+                    if (isDate) {
+                        d = new Date(find.y, find.m, find.d);
+                    } else {
+                        d = new Date(find.y, find.m, find.d, find.H, find.M);
+                    }
+                    if (d.getFullYear() === find.y) {
+                        if (d.getMonth() === find.m) {
+                            if (d.getDate() === find.d) {
+                                if (isDateTime) {
+                                    if (d.getHours() === find.H && d.getMinutes() === find.M) {
+                                        ret = valjsExtend(trueValue, {}, find, {'date':d});
+                                    }
+                                } else {
+                                    ret = valjsExtend(trueValue, {}, find, {'date':d});
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    d = getDateOfISOWeek(find.y, find.w);
+                    if ( find.w === 1) {
+                        if ( valjsGetWeekYear(d) === find.y -1) {
+                            ret = valjsExtend(trueValue, {}, find, {'date':d});
+                        }
+                    }
+                    if (d.getFullYear() === valjsGetWeekYear(d) && d.getFullYear() === find.y) {
+                        ret = valjsExtend(trueValue, {}, find, {'date':d});
+                    }
+                }
+
+            }
+        }
+        return ret;
+    }
+
+    function valjsTryParseDate(valjsArgs, type) {
+        var datestring = valjsArgs.field['value'], 
+            format = valjsArgs.config.format,
+            parsed,
+            macros;
+
+        if (type === "d") {
+            macros = 
+            parsed = valjsExtractDateParts(datestring, format, ['y', 'm', 'd']);
+            if (parsed) {
+                return valjsDateMinMax(valjsArgs, parsed.date, '%y-%m-%d', ['y', 'm', 'd']); 
+            }
+        } else if (type === "dt") {
+            parsed = valjsExtractDateParts(datestring, format, ['y', 'm', 'd', 'H', 'M']);
+            if (parsed) {
+                return valjsDateMinMax(valjsArgs, parsed.date, '%y-%m-%d %H:%M', ['y', 'm', 'd', 'H', 'M']); 
+            }
+        } else if (type === "w") {
+            parsed = valjsExtractDateParts(datestring, format, ['y', 'w']);
+             if (parsed) {
+                return valjsWeekMinMax(valjsArgs, parsed, '%y-W%w', ['y', 'w']); 
+            }
+        }
+        return falseValue;
+    }
+
+    function valjsGetMinMaxIfMultiselect(element, getAttr) {
+        var elm = element.valjs('getFieldType'),
+            val = valjsGetAttr(element, getAttr);
+        if (elm.type === 'select' && elm.isMultiple === trueValue) {
+            return val !== undefined ? { value : val } : falseValue;
+        } else {
+            return falseValue;
+        }
+    }
+
+    /**
+     * Require a minimum number of items to be selected in a
+     * multiple select list
+     *
+     *  data-listmin-min="2" or min="2"
+     */
+    valjsAddRule('listmin', {
+        options : {
+            msg : 'Select more items'
+        },
+        testElement : function(valjsArgs) {
+            return valjsGetMinMaxIfMultiselect(valjsArgs.element, 'min');
+        },
+        run : function(valjsArgs) {
+            var value = valjsArgs.config.value,
+                selectedElements = valjsLength(valjsSelectElements('option:selected', valjsArgs.element));
+            return selectedElements >= value;
+        },
+        bind : function(valjsArgs) {
+           return {
+                value : parseInt(valjsArgs.config.value)
+            };
+        }
+    });
+
+    valjsAddRule('listmax', {
+        options : {
+            msg : 'Too many items selected'
+        },
+        testElement : function(valjsArgs) {
+            return valjsGetMinMaxIfMultiselect(valjsArgs.element, 'max');
+        },
+        run : function(valjsArgs) {
+            var value = valjsArgs.config.value,
+                selectedElements = valjsLength(valjsSelectElements('option:selected', valjsArgs.element));
+            return selectedElements <= value;
+        },
+        bind : function(valjsArgs) {
+           return {
+                value : parseInt(valjsArgs.config.value)
+            };
+        }
+    });
+
+    /**
+     * Require a field to contain a date in a specific pattern
+     *
+     *  type="date" or data-date
+     */
+    valjsAddRule('date', {
+        options : {
+            msg : {
+                'error' : 'Invalid date',
+                'max' : 'Enter an earlier date',
+                'min' : 'Enter a later date'
+            },
+            format : '%y-%m-%d'
+        },
+        testElement : function(valjsArgs) {
+            return valjsArgs.element.attr('type') === valjsArgs.rule.name;
+        },
+        bind : function(valjsArgs){
+            var element = valjsArgs.element,
+                attrValue,
+                ret = {};
+
+            attrValue = valjsGetAttr(element, 'min');
+            if (attrValue) {
+                ret['min'] = attrValue;
+            }
+            attrValue = valjsGetAttr(element, 'max');
+            if (attrValue) {
+                ret['max'] = attrValue;
+            }
+            return ret;            
+        },
+        run : function(valjsArgs) {
+            var d;
+            
+            if (valjsLength(valjsArgs.field.value) === 0) {
+                return trueValue;
+            }
+            d = valjsTryParseDate(valjsArgs, 'd');
+            return d;
+        }
+    });
+
+    valjsAddRule('datetime', {
+        options : {
+            msg : {
+                'error' : 'Invalid date',
+                'max' : 'Enter an earlier date',
+                'min' : 'Enter a later date'
+            },
+            format : '%y-%m-%d %H:%M'
+        },
+        testElement : function(valjsArgs) {
+            return valjsArgs.element.attr('type') === valjsArgs.rule.name;
+        },
+        bind : function(valjsArgs){
+            var element = valjsArgs.element,
+                attrValue,
+                ret = {};
+
+            attrValue = valjsGetAttr(element, 'min');
+            if (attrValue) {
+                ret['min'] = attrValue;
+            }
+            attrValue = valjsGetAttr(element, 'max');
+            if (attrValue) {
+                ret['max'] = attrValue;
+            }
+            return ret;
+        },
+        run : function(valjsArgs) {
+            if (valjsLength(valjsArgs.field.value) === 0) {
+                return trueValue;
+            }
+            return valjsTryParseDate(valjsArgs, 'dt');
+        }
+    });
+
+    valjsAddRule('week', {
+        options : {
+            msg : {
+                'error' : 'Invalid week',
+                'max' : 'Enter an earlier week',
+                'min' : 'Enter a later week'
+            },
+            format : '%y-W%w'
+        },
+        testElement : function(valjsArgs) {
+            return valjsArgs.element.attr('type') === valjsArgs.rule.name;
+        },
+        bind : function(valjsArgs){
+            var element = valjsArgs.element,
+                attrValue,
+                ret = {};
+
+            attrValue = valjsGetAttr(element, 'min');
+            if (attrValue) {
+                ret['min'] = attrValue;
+            }
+            attrValue = valjsGetAttr(element, 'max');
+            if (attrValue) {
+                ret['max'] = attrValue;
+            }
+            return ret;
+        },
+        run : function(valjsArgs) {
+            if (valjsLength(valjsArgs.field.value) === 0) {
+                return trueValue;
+            }
+            return valjsTryParseDate(valjsArgs, 'w');
+        }
+    });
+
+    valjsAddRule('required', {
+        options : {
+            msg : 'Required',
+            trim : falseValue,           // True if text fields should be 
+            emptyIndex : undefined,      // (Lists) the value that should count as "not selected"
+            emptyValue : undefined       // (Lists) the index that should count as "not selected"
+        },
+        
+        // We want the required rule to execute first
+        prio : 10,
+
+        testElement : function(valjsArgs) {
+            return valjsArgs.element.attr(valjsArgs.rule.name) !== undefined;
+        },
+        run : function(valjsArgs) {
+            var $elm = valjsArgs.element,
+                type = valjsArgs.field.type,
+                val = valjsArgs.field.value,
+                idx = 0;
+
+            if (type === 'text' || type === 'textarea' || type === "file") {
+                val = valjsArgs.config.trim === trueValue ? $.trim(valjsArgs.field.value) : val;
+                if (valjsLength(val) === 0) {
+                    return keyNameDefault;
+                }
+            } else {
+                if (type === selectTypeName) {
+                    if ($elm.attr('multiple') === undefined) {
+                        if (valjsArgs.config.emptyIndex !== undefined) {
+                            idx = parseInt(valjsArgs.config.emptyIndex);
+                            val = valjsSelectElements('option:selected', $elm).index();
+                            if (val === idx) {
+                                return keyNameDefault;
+                            }
+                            return trueValue;
+                        } else if (valjsArgs.config.emptyValue !== undefined) {
+                            if (val[0] === valjsArgs.config.emptyValue) {
+                                return keyNameDefault;
+                            }
+                            return trueValue;
+                        } else {
+                            if (val[0].length == 0) {
+                                return keyNameDefault;
+                            }
+                        }
+                    } else {
+                        if (valjsLength(val) === 0) {
+                            return keyNameDefault;
+                        }
+                    }
+                } else {
+                    if (type === 'checkbox' || type === "radio") {
+                        if (val === falseValue) {
+                            return keyNameDefault;
+                        }
+                    }
+                }
+            }
+            return trueValue;
+        },
+        bind: function(valjsArgs) {
+            return trueValue;
+        }
+    });
+
+
+    valjsAddRule('number', {
+        options : {
+            msg : {
+                'error' : 'Not a number',
+                'max' : 'Value too high',
+                'min' : 'Value too low'
+            },
+            separator : '.',
+            step : null
+        },
+        
+        testElement : function(valjsArgs) {
+            return valjsArgs.element.attr("type") === "number";
+        },
+
+        run : function(valjsArgs) {
+            var $elm = valjsArgs.element,
+                type = valjsArgs.field.type,
+                val = valjsArgs.field.value,
+                decimal = valjsArgs.config.step === 'any',
+                max = valjsParseNumber(valjsArgs.config.max, '.', decimal),
+                min = valjsParseNumber(valjsArgs.config.min, '.', decimal),
+                parsed = val;
+
+            if(valjsLength(val) !== 0) {
+                parsed = valjsParseNumber(val, valjsArgs.config.separator, decimal);
+
+                if (isNaN(parsed)) {
+                    return falseValue;
+                }
+
+                if (!isNaN(min)) {
+                    if (parsed < min) {
+                        return 'min';
+                    }
+                }
+
+                if (!isNaN(max)) {
+                    if (parsed > max) {
+                        return 'max';
+                    }
+                }
+
+                return trueValue;
+            }
+
+            return trueValue;
+        },
+        
+        bind : function(valjsArgs) {
+            return {
+                step : valjsGetAttr(valjsArgs.element, 'step'),
+                min : valjsGetAttr(valjsArgs.element, 'min'),
+                max : valjsGetAttr(valjsArgs.element, 'max')
+            };
+        }
+    });
+
+    function valjsParseNumber(val, separator, decimal) {
+        var parsed;
+        if(!val) {
+            return NaN;
+        }
+        if(separator !== '.') {
+            val = val.replace('.', '=-=!');
+        }
+        val = val.replace(separator, '.');
+        val = val.replace(/^0+(\d)/, "$1");
+        if (decimal) {
+            val = val.replace(/\.0+$/, "");
+            if(val.indexOf('.') !== -1) {
+                val = val.replace(/\.([0-9]+?)(0+)$/, ".$1");
+            }
+        }
+        parsed = decimal ? parseFloat(val) : parseInt(val);
+        if (String(parsed) === String(val)) {
+            return parsed;
+        }
+        return NaN
+    } 
+
+    function valjsTestBindTextLength(fieldType) {
+        if (fieldType.type === "text" || fieldType.type === "textarea") {
+            if(!fieldType.date && !fieldType.number && !fieldType.week && !fieldType.datetime) {
+                return trueValue;
+            }
+        }
+    }
+
+    valjsAddRule('textmax', {
+        options : {
+            msg : {
+                'error' : 'Text too long'
+            }
+        },
+
+        prio : 150,
+        
+        testElement : function(valjsArgs) {
+            var fieldType = valjsArgs.element.valjs('getFieldType'),
+                val = valjsGetAttr(valjsArgs.element, 'max');
+            if (val) {
+                if (valjsTestBindTextLength(fieldType)) {
+                    return {
+                            value : val
+                    };
+                }
+            }
+        },
+        bind : function(valjsArgs){
+            var element = valjsArgs.element;
+
+            // We do not want to bind if the other rules that use min or max
+            // are bound to this element
+            if (element.valjs('hasRule', rulesUsingMinMax)) {
+                return falseValue;
+            }
+
+            // Make sure the value is an integer when we bind the rule
+            return valjsExtend(trueValue, valjsArgs.config, {
+                value : valjsParseIntBase10(valjsArgs.config.value)
+            });
+        },
+        run : function(valjsArgs) {
+            var value = valjsArgs.field.value;
+            if(value) {
+                if(valjsLength(value) > valjsArgs.config.value) {
+                    return falseValue;
+                }
+            }
+           return trueValue;
+        }
+    });
+
+    valjsAddRule('textmin', {
+        options : {
+            msg : {
+                'error' : 'Text too short'
+            }
+        },
+
+        prio : 150,
+        
+        testElement : function(valjsArgs) {
+            var fieldType = valjsArgs.element.valjs('getFieldType'),
+                val = valjsGetAttr(valjsArgs.element, 'min');
+            if (val) {
+                if (valjsTestBindTextLength(fieldType)) {
+                    return {
+                            value : val
+                    };
+                }
+            }
+        },
+
+        bind : function(valjsArgs){
+            var element = valjsArgs.element;
+
+            // We do not want to bind if the other rules that use min or max
+            // are bound to this element
+            if (element.valjs('hasRule', rulesUsingMinMax)) {
+                return falseValue;
+            }
+
+            // Make sure the value is an integer when we bind the rule
+            return valjsExtend(trueValue, valjsArgs.config, {
+                value : valjsParseIntBase10(valjsArgs.config.value)
+            });
+        },
+        run : function(valjsArgs) {
+            var value = valjsArgs.field.value;
+            if(value) {
+                if(valjsLength(value) < valjsArgs.config.value) {
+                    return falseValue;
+                }
+            }
+           return trueValue;
+        }
+    });
+
+    valjsAddRule('filemax', {
+        options : {
+
+            msg : {
+                'error' : null,
+                'one' : 'File too large',
+                'all' : 'Total size too large'
+            }
+        },
+
+        testElement : function(valjsArgs) {
+            var fieldType = valjsArgs.element.valjs('getFieldType'),
+                val = valjsGetAttr(valjsArgs.element, 'max');
+
+            if (fieldType.type === "file" && val) {
+                return {
+                        value : val
+                };
+            }
+        },
+
+        bind : function(valjsArgs){
+            var element = valjsArgs.element;
+
+            // Make sure the value is an integer when we bind the rule
+            return valjsExtend(trueValue, valjsArgs.config, {
+                value : valjsParseIntBase10(valjsArgs.config.value)
+            });
+        },
+        run : function(valjsArgs) {
+            var max = valjsArgs.config.value,
+                singleFileSize,
+                f = valjsArgs.element[0].files,
+                flen = valjsLength(f),
+                file_index,
+                fileInfo = [],
+                file_size = 0;
+            
+            if (flen > 0) {
+                for (file_index = 0; file_index < flen; file_index += 1) {
+                    singleFileSize = f[file_index].size;
+                    file_size += singleFileSize;
+                    if (singleFileSize > max) {
+                         return {
+                            msg : 'one', 
+                            maxKiB : max,
+                            maxsize: valjsFormatBytes(max),
+                            filename : f[file_index].name,
+                            fileKiB : singleFileSize,
+                            filesize : valjsFormatBytes(singleFileSize)
+                        };
+                    }
+                }
+                
+                if (file_size > max) {
+                    return {
+                        msg : 'all',
+                        totalKiB : file_size,
+                        totalsize : valjsFormatBytes(file_size),
+                        maxsize : valjsFormatBytes(max),
+                        maxKiB : max
+                    }; 
+                }
+            }
+           return trueValue;
+        }
+    });
+
+    valjsAddRule('filemin', {
+        options : {
+            
+            msg : {
+                'error' : null,
+                'one' : 'File too small',
+                'all' : 'Total size too small'
+            }
+        },
+
+        testElement : function(valjsArgs) {
+            var fieldType = valjsArgs.element.valjs('getFieldType'),
+                val = valjsGetAttr(valjsArgs.element, 'min');
+
+            if (fieldType.type === "file" && val) {
+                return {
+                        value : val
+                };
+            }
+        },
+
+        bind : function(valjsArgs){
+            var element = valjsArgs.element;
+
+            // Make sure the value is an integer when we bind the rule
+            return valjsExtend(trueValue, valjsArgs.config, {
+                value : valjsParseIntBase10(valjsArgs.config.value)
+            });
+        },
+        run : function(valjsArgs) {
+            var min = valjsArgs.config.value,
+                singleFileSize,
+                f = valjsArgs.element[0].files,
+                flen = valjsLength(f),
+                file_index,
+                fileInfo = [],
+                file_size = 0;
+            
+            if (flen > 0) {
+                for (file_index = 0; file_index < flen; file_index += 1) {
+                    singleFileSize = f[file_index].size;
+                    file_size += singleFileSize;
+                    console.warn(singleFileSize, min);
+                    if (singleFileSize < min) {
+                         return {
+                            msg : 'one', 
+                            minbytes : min,
+                            minsize: valjsFormatBytes(min),
+                            filename : f[file_index].name,
+                            filebytes :  singleFileSize,
+                            filesize : valjsFormatBytes(singleFileSize)
+                        };
+                    }
+                }
+                
+                if (file_size < min) {
+                    return {
+                        msg : 'all',
+                        totalbytes : file_size,
+                        totalsize : valjsFormatBytes(file_size),
+                        minsize : valjsFormatBytes(min),
+                        minbytes : min
+                    }; 
+                }
+            }
+           return trueValue;
+        }
+    });
+
+    valjsAddRule('email', {
+
+        options : {
+            msg : {
+                'error' : 'Invalid e-mail'
+            },
+            domain : trueValue
+        },
+
+        testElement : function(valjsTestArgs) {
+            return valjsTestArgs.element.attr('type') === valjsTestArgs.rule.name;
+        },
+
+        run : function(valjsRunArgs) {
+            var v = valjsRunArgs.field.value, re,
+            atIndex,isValid=trueValue,domain,local,localLen,domainLen;
+            if (valjsLength(v) > 0) {
+                if (typeof v !== "string") {
+                    v  = v[0];
+                }
+                atIndex = v.indexOf('@');
+                if (atIndex === -1) {
+                    isValid = falseValue;
+                } else {
+                    domain = v.substr(atIndex+1);
+                    local = v.substr(0, atIndex);
+                    localLen = local.length;
+                    domainLen = domain.length;
+                    if (localLen < 1 || localLen > 64) {
+                        // local part length exceeded
+                        isValid = falseValue;
+                    } else if (domainLen < 1 || domainLen > 255) {
+                        // domain part length exceeded
+                        isValid = falseValue;
+                    } else if (local[0] == '.' || local[localLen-1] == '.') {
+                        // local part starts or ends with '.'
+                        isValid = falseValue;
+                    } else if (/\.\./.test(local)) {
+                        // local part has two consecutive dots
+                        isValid = falseValue;
+                    } else if (!/^[åäöA-Za-z0-9\\-\\.]+$/.test(domain)) {
+                        // character not valid in domain part
+                        isValid = falseValue;
+                    } else if (!/^[åäöA-Za-z0-9\\-\\.]+$/.test(domain)) {
+                        // character not valid in domain part
+                        isValid = falseValue;
+                    } else if (/\.\./.test(domain)) {
+                        // domain part has two consecutive dots
+                        isValid = falseValue;
+                    } else if (!/^(\\.|[A-Za-z0-9!#%&`_=\/$\'*+?^{}|~.-])+$/.test(local.replace("\\\\","")) ) {
+                        // character not valid in local part unless 
+                        // local part is quoted
+                        if (! /^"(\\\\"|[^"])+"$/.test(local.replace("\\\\",""))) {
+                            isValid = falseValue;
+                        }
+                    }
+                    
+                    if( valjsRunArgs.config.domain   ) {
+                        if (!/\.[a-z]{2,4}$/.test(v)) {
+                            isValid = falseValue;
+                        }
+                    }
+                }
+                // return false to show the default msg
+                return isValid ? trueValue : falseValue;
+            }
+            return trueValue;
+        },
+
+        bind: function (valjsBindArgs) {
+            if (valjsBindArgs.type === 'select' && valjsBindArgs.element.attr('multiple') === undefined) {
+                return falseValue;
+            }
+            return trueValue;
+        }
+    });
+
+    valjsAddRule('confirm', {
+
+        options : { 
+            msg : {
+                'error' : "Fields don't match",
+                'invalidSource' : 'Source field invalid'
+            }
+        },
+
+        run: function (valjsArgs) {
+            if (!valjsTestIsElementReadyForValidation(valjsArgs.config.celm)) return trueValue;
+            if (valjsArgs.config.celm.valjs('getFieldStatus') === 0) {
+                valjsArgs.config.celm.valjs('validateField');
+            }
+            if (valjsArgs.config.celm.valjs('getFieldStatus') === -1) return 'invalidSource';
+
+            return valjsArgs.config.celm.val() === valjsArgs.element.val() ? trueValue : falseValue;
+        },
+
+        bind: function (valjsBindRuleArgs) {
+            var e = valjsFindInputByNameOrSelector(valjsBindRuleArgs.context, valjsBindRuleArgs.config.value);
+            if (e !== undefined) {
+                if (valjsBindRuleArgs.valjs.config.liveValidation) {
+                    e.on('keydown keyup change blur', function () {
+                        valjsBindRuleArgs.element.valjs('validateField');
+                    })
+                    .on('validfield.valjs', function() {
+                        valjsBindRuleArgs.element.valjs('validateField');
+                    })
+                }
+                return {
+                    celm: e
+                }
+            }
+        }
+    });
+
+    valjsAddRule('pattern', {
+        options : {
+            ignoreCase : falseValue,
+            invert : falseValue,
+            msg : {
+                'error' : "Incorrect format"
+            }
+        },
+
+        testElement : function(valjsArgs) {
+            var val = valjsGetAttr(valjsArgs.element, 'pattern');
+
+            if (val) {
+                return {
+                    value : val
+                };
+            }
+        },
+
+        run: function (valjsArgs) {
+            var options = (valjsArgs.config.ignoreCase ? 'i' : ''),
+                re = new RegExp(valjsArgs.config.value, options),
+                isMatch,
+                val = valjsArgs.field.value;
+            if (val) {
+                if (re) {
+                    isMatch = re.test(valjsArgs.field.value);
+                    if (isMatch) {
+                        if (valjsArgs.config.invert) {
+                            return falseValue;
+                        } else {
+                            return trueValue;
+                        }
+                    } else {
+                        if(valjsArgs.config.invert) {
+                            return trueValue;
+                        }
+                    }
+                }
+                return falseValue;
+            }
+            return trueValue;
+        }
+    });
+
+    valjsAddRule('url', {
+        options : {
+            value : 'ost',
+            msg : {
+                'error' : "Invalid URL"
+            }
+        },
+        testElement : function(valjsArgs) {
+            return valjsGetAttr(valjsArgs.element, 'type') === 'url';
+        },
+        run: function (valjsArgs) {
+            if (valjsArgs.field.value) {
+                return /^(https?|s?ftp|wss?):\/\/(((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:)*@)?(((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5]))|((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.?)(:\d*)?)(\/((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)+(\/(([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)*)*)?)?(\?((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)|[\uE000-\uF8FF]|\/|\?)*)?(#((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)|\/|\?)*)?$/i.test(valjsArgs.field.value);
+            }
+            return trueValue;
+        }
+    });
+
+     valjsAddRule('security', {
+        options : {
+            value : 'luns',
+            match: 2,
+            msg : {
+                'error' : "Requirements not met"
+            }
+        },
+        bind : function(valjsArgs) {
+            return {
+                match : valjsParseIntBase10(valjsArgs.config.match)
+            }
+        },
+        run: function (valjsArgs) {
+            var specials = '!@#$%^&*()_+|~-=\â€˜{}[]:";â€™<>?,./',
+                value = valjsArgs.field.value,
+                rules = valjsArgs.config.value,
+                match = valjsArgs.config.match,
+                count = 0;
+
+            if (match > rules.length) {
+                match = rules.length;
+            }
+
+            if (valjsIndexOf(rules, 'l') != -1) {
+                count += (value.match(/[a-z]/) ? 1 : 0);
+            }
+
+            if (valjsIndexOf(rules, 'u') != -1) {
+                count += (value.match(/[A-Z]/) ? 1 : 0);
+            }
+
+            if (valjsIndexOf(rules, 'n') != -1) {
+                count += (value.match(/\d/) ? 1 : 0);
+            }
+
+            if (valjsIndexOf(rules, 's') != -1) {
+                var re = new RegExp("[" + specials.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&") + "]");
+                if (value.match(re)) {
+                    count++;
+                }
+            }
+            return count >= match ? trueValue : falseValue;
+        }
+    });
+    return ValJS;
+
+}(window, jQuery)); 
