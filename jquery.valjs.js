@@ -65,36 +65,57 @@ window.ValJS = (function ($) {
         blurEvent = 'blur';
 
     /**
-     * [valjsExtend description]
-     * @return {[type]} [description]
+     * Wrapper function for jQuerys extend
+     * http://api.jquery.com/jquery.extend/
+     * 
+     * @return {object} The merged object
      */
     function valjsExtend() {
         var args = Array.prototype.slice.call(arguments);
         return $.extend.apply($, args);
     }
 
+    /**
+     * Help function to check for undefined variables
+     * @param  {object} object The variable to check
+     * @return {boolean}       True if the object is undefined
+     */
     function valjsIsUndefined(object) {
         return object === undefined;
     }
 
+    /**
+     * Help function to check if a variable is of type string
+     * @param  {object} object The value to check
+     * @return {boolean        True of the value is a string
+     */
     function valjsIsString(object) {
         return typeof object === "string";
     }
 
+    /**
+     * Wrapper function for jQuerys removeClass function
+     * @param  {object} $elm      jQuery element(s)
+     * @param  {string} className Classes to add
+     */
     function valjsRemoveClass($elm, className) {
         $elm.removeClass(className);
     }
 
+    /**
+     * Wrapper function for jQuerys removeData function
+     * @param  {object} $elm     jQuery element(s)
+     * @param  {string} dataName Name of data property
+     */
     function valjsRemoveData($elm, dataName) {
         $elm.removeData(dataName);
     }
 
     /**
      * Utility method to clear all modifiers on an element
-     * @param  {*} $elm        [description]
-     * @param  {string} elementType [description]
-     * @param  {*} valjs       [description]
-     * @return {*}             [description]
+     * @param  {object} $elm        jQuery element(s)
+     * @param  {string} elementType Name of element type
+     * @param  {object} valjs       ValJS instance
      */
     function valjsClearModifiers($elm, elementType, valjs) {
         /** @type {{removeClass:function(string, boolean) : *}} */
@@ -115,6 +136,12 @@ window.ValJS = (function ($) {
         return 0;
     }
 
+    /**
+     * Wrapper function find elements below an element
+     * @param  {string} selector jQuery selector
+     * @param  {object} element  Element to find children for
+     * @return {array}          List of elements
+     */
     function valjsSelectElements(selector, element) {
         return $(element).find(selector);
     }
@@ -142,6 +169,12 @@ window.ValJS = (function ($) {
         return jQuery.inArray(value, array);
     }
 
+    /**
+     * Evaluate a msg setting and normalize it
+     * @param  {object} msgObject      string, object or function to evaluate
+     * @param  {object} existingObject Existing object to concider
+     * @return {object}                The normalized object
+     */
     function valjsGetMsgConfig(msgObject, existingObject) {
         //console.error(msgObject, existingObject);
 
@@ -177,11 +210,9 @@ window.ValJS = (function ($) {
 
 
     /**
-     * [valjsAddRule description]
-     * @param  {string} name        [description]
-     * @param  {*} options     [description]
-     * @param  {*} testFnOrMsg [description]
-     * @param  {*} bindFnOrMsg [description]
+     * Internal method for adding a rule (available for public as well)
+     * @param  {string} name        The rule name
+     * @param  {object} ruleConfig  The rule definition
      */
     function valjsAddRule(name, ruleConfig) {
         var options = ruleConfig.options;
@@ -201,10 +232,10 @@ window.ValJS = (function ($) {
 
     /**
      * Get classes for an element type based on valjs configuration and element type
-     * @param  {*} valjs       [description]
-     * @param  {string} elementType [description]
-     * @param  {...string} modifiers   [description]
-     * @return {string}             [description]
+     * @param  {object} valjs       The ValJS instance
+     * @param  {string} elementType The element type
+     * @param  {...string} modifiers   List of modifiers to set
+     * @return {string}             The complete class name
      */
     function valjsGetClass(valjs, elementType, modifiers) {
         var cn = valjs.config.elements,
@@ -234,6 +265,11 @@ window.ValJS = (function ($) {
         return ret.join(' ');
     }
 
+    /**
+     * Method to invoke the findMsg-method for an element
+     * @param  {object} options Object containing the element property
+     * @return {object}         The msg element
+     */
     function invokeElementFindMsgFunction(options) {
         var $elm = options.element, cfg;
         if (!$elm) {
@@ -243,6 +279,12 @@ window.ValJS = (function ($) {
         return cfg.iFindMsgFn(options);
     }
 
+    /**
+     * Wrapper function for jQuerys addClass
+     * @param  {object} $elm      jQuery element(s)
+     * @param  {string} className The class to add
+     * @return {object}           The element
+     */
     function valjsJsAddClass($elm, className) {
         return $elm.addClass(className);
     }
@@ -319,7 +361,6 @@ window.ValJS = (function ($) {
         $elm.data(dElmType, result);
         return result;
     }
-
 
     function valjsGetElementValue($elm, event) {
         var et = valjsGetElementType($elm),
@@ -1127,9 +1168,18 @@ window.ValJS = (function ($) {
     function valjsFormSerialize($elm) {
         var serializedArray = $elm.find('input,select,textarea,button').serializeArray(),
             returnObject = {},
+            tmp,
             i;
         for (i = 0; i < valjsLength(serializedArray); i += 1) {
-            returnObject[serializedArray[i].name] = serializedArray[i].value;
+            if(returnObject[serializedArray[i].name]) {
+                if (valjsIsString(returnObject[serializedArray[i].name])) {
+                    tmp = String(returnObject[serializedArray[i].name]);
+                    returnObject[serializedArray[i].name] = [tmp];
+                }
+                returnObject[serializedArray[i].name].push(serializedArray[i].value)
+            } else {
+                returnObject[serializedArray[i].name] = serializedArray[i].value;
+            }
         }
         return returnObject;
     }
@@ -1167,8 +1217,7 @@ window.ValJS = (function ($) {
                 {
                     currentTarget : valjs.context,
                     target: valjs.$form[0],
-                    valjs: valjsExtend({}, result, { form : valjs.$form[0], context : valjs.context }),
-                    formData : valjsFormSerialize(valjs.jqContext)
+                    valjs: valjsExtend({}, { form : valjs.$form[0], context : valjs.context, formData : valjsFormSerialize(valjs.jqContext)})
                 });
             if (submitEvent.isDefaultPrevented()) {
                 // If the submit is stopped from the ValJS Event
@@ -2546,5 +2595,4 @@ window.ValJS = (function ($) {
         }
     });
     return ValJS;
-
 }(jQuery));
