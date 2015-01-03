@@ -1,4 +1,4 @@
-/*! ValJS v0.7.1 (2015-01-03) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.2 (2015-01-03) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -13,7 +13,7 @@ window.ValJS = (function (window, $) {
     /** @global $ */
     var dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '0.7.1';
+            this.valjsv = '0.7.2';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -1087,7 +1087,6 @@ window.ValJS = (function (window, $) {
             currentRule = wj.rules[ruleNames[rule_index]];
             config = rules[ruleNames[rule_index]];
             result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
-            console.warn(result);
             if (result.ok === false) {
                 statusHash.push(currentRule.name + result.result.msg);
                 validations.fail.push(valjsExtend(true, {}, { msg : result.result }, { rule : currentRule.name}));
