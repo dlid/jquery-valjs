@@ -1,4 +1,4 @@
-***NOTE*** This is just a draft and the current version of ValJS is an old broken script that I intend fixing during a JavaScript-course in Blekinge Tekniska Högskola 
+http://valjs.io
 
 -----------------------------------------------------------
 
@@ -11,6 +11,10 @@ jQuery ValJS is a jQuery Form Validation library with focus on three main things
   - Easy to extend with your own rules and custom event receivers
 
 ### Version
+
+0.71 2014-01-03
+- Refactored valjsInvokeElementValidation (trying to lower complexity, 55)
+
 0.7 2014-12-31
 - Completely rewritten code over a few weeks time
 - This version will not be compatible with the johnny5-version
