@@ -1,4 +1,4 @@
-/*! ValJS v0.71 (2014-12-31) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.1 (2015-01-03) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -13,7 +13,7 @@ window.ValJS = (function (window, $) {
     /** @global $ */
     var dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '0.71';
+            this.valjsv = '0.7.1';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -972,37 +972,40 @@ window.ValJS = (function (window, $) {
         }
     }
 
-    function valjsRuleRun(valjs, $elm, elementValue, event, rule, config) {
+    function valjsGetNamedMessageFromRuleResult(result) {
+        var namedMessage;
+        if (typeof result === "boolean") {
+            namedMessage = keyNameDefault;
+        } else if (typeof result === "object") {
+            namedMessage = result.msg;
+        } else if (valjsIsString(result)) {
+            namedMessage = result;
+        }
+        return namedMessage;
+    }
 
-        var namedMessage,
-            resultObject,
-            execParameters = {
-                'event': event,
-                'config': config,
-                'valjs': valjs,
-                'element' : $elm,
-                'field': valjsExtend({ value: elementValue.value }, valjsGetElementType($elm))
-            },
-            result = rule.run(execParameters, $elm),
-            returnValue = { t : null, d : null };
+    function valjsGetValidationMessage(execParameters, config, originalValue) {
+        var message = originalValue,
+            namedMessage = execParameters.msgName;
+        if (valjsIsFunction(config.msg)) {
+            message = config.msg(execParameters);
+        } else if (!valjsIsUndefined(config.msg) && !valjsIsUndefined(config.msg[namedMessage])) {
+            if (valjsIsFunction(config.msg[namedMessage])) {
+                message = config.msg[namedMessage](execParameters);
+            } else if (valjsIsString(namedMessage)) {
+                message = config.msg[namedMessage];
+            }
+        }
+        return message;
+    }
+
+    function valjsParseRuleResult(result, execParameters) {
+        var resultObject,
+            returnValue = { ok : trueValue, result : null },
+            rule = execParameters.rule;
 
         if (result !== trueValue && (typeof result !== "object" || result.msg)) {
-
-            if (typeof result === "boolean") {
-                namedMessage = keyNameDefault;
-            } else if (typeof result === "object") {
-                namedMessage = result.msg;
-            } else if (valjsIsString(result)) {
-                namedMessage = result;
-            }
-
-            execParameters = {
-                valjs: valjs,
-                config : config,
-                rule : rule,
-                element : $elm,
-                msgName : namedMessage
-            };
+            execParameters.msgName = valjsGetNamedMessageFromRuleResult(result);
 
             if (typeof result === "object") {
                 resultObject = valjsExtend(trueValue, {}, result);
@@ -1010,37 +1013,40 @@ window.ValJS = (function (window, $) {
                 execParameters.result = resultObject;
             }
 
-            // If the rule default error message is null, then
             // it should be used if it's been specified otherwhere
             if (rule.options && rule.options.msg && rule.options.msg[keyNameDefault] === null) {
-                if (config.msg[keyNameDefault] !== null) {
-                    namedMessage = keyNameDefault;
+                if (execParameters.config.msg[keyNameDefault] !== null) {
+                    execParameters.msgName = keyNameDefault;
                 }
             }
+            result = valjsGetValidationMessage(execParameters, execParameters.config, result);
+            returnValue.ok = falseValue;
+            returnValue.result = result;
 
-            if (valjsIsFunction(config.msg)) {
-                result = config.msg(execParameters);
-            } else if (!valjsIsUndefined(config.msg) && !valjsIsUndefined(config.msg[namedMessage])) {
-                if (valjsIsFunction(config.msg[namedMessage])) {
-                    result = config.msg[namedMessage](execParameters);
-                } else if (valjsIsString(namedMessage)) {
-                    result = config.msg[namedMessage];
-                }
-            }
-
-            returnValue.t = 'fail';
-            returnValue.d = {
-                rule: rule.name,
-                msg: result
-            };
-
-//            statusHash.push(rule.name + result);
-  //          validations.fail.push();
         } else {
-            returnValue.d = { rule: rule.name, result : result };
-//            validations.success.push();
+            returnValue.result = result;
         }
         return returnValue;
+    }
+
+    function valjsRuleRun(valjs, $elm, elementValue, event, rule, config) {
+
+        var execParameters = {
+                'event': event,
+                'config': config,
+                'valjs': valjs,
+                'element' : $elm,
+                'field': valjsExtend({ value: elementValue.value }, valjsGetElementType($elm))
+            },
+            result = rule.run(execParameters, $elm);
+
+        return valjsParseRuleResult(result,  {
+            valjs: valjs,
+            config : config,
+            rule : rule,
+            element : $elm,
+            msgName : null
+        });
     }
 
 
@@ -1081,11 +1087,12 @@ window.ValJS = (function (window, $) {
             currentRule = wj.rules[ruleNames[rule_index]];
             config = rules[ruleNames[rule_index]];
             result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
-            if (result.t === "fail") {
-                statusHash.push(currentRule.name + result.d.msg);
-                validations.fail.push(result.d);
+            console.warn(result);
+            if (result.ok === false) {
+                statusHash.push(currentRule.name + result.result.msg);
+                validations.fail.push(valjsExtend(true, {}, { msg : result.result }, { rule : currentRule.name}));
             } else {
-                validations.success.push(result.d);
+                validations.success.push(valjsExtend(true, {}, result.result, { rule : currentRule.name}));
             }
         }
 
