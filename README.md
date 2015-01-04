@@ -12,6 +12,9 @@ jQuery ValJS is a jQuery Form Validation library with focus on three main things
 
 ### Version
 
+0.7.4 2014-01-04
+- Refactored valjsGetElementConfigFromAttributes (complexity, 54)
+
 0.71 2014-01-03
 - Refactored valjsInvokeElementValidation (trying to lower complexity, 55)
 
@@ -74,6 +77,8 @@ Then you need to trigger ValJS for the form:
 ```
 
 ### Todo's
+
+See http://valjs.io/docs/articles/about/changelog#future
 
 ...
 

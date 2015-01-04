@@ -1,4 +1,4 @@
-/*! ValJS v0.7.3 (2015-01-03) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.4 (2015-01-04) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -13,7 +13,7 @@ window.ValJS = (function (window, $) {
     /** @global $ */
     var dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '0.7.3';
+            this.valjsv = '0.7.4';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -509,6 +509,89 @@ window.ValJS = (function (window, $) {
         return newValue;
     }
 
+    function valjsRuleCustomBind(valjs, rule, $elm) {
+        var ret = { binding : null, elmRules : undefined},
+            customBindResult,
+            ruleName = rule.name;
+        if (valjs.config.allowRuleInitialization === trueValue) {
+            customBindResult = rule.testElement({ form : valjs.$form, context : valjs.jqContext, rule: rule, element: $elm, valjs: valjs });
+            if (typeof customBindResult === 'object') {
+                if (!valjsIsUndefined(customBindResult[ruleName])) {
+                    ret.binding = { data: {} };
+                    ret.elmRules = {};
+                    ret.elmRules[ruleName] = 'custombind';
+                } else {
+                    ret.binding = { data : customBindResult };
+                }
+            } else {
+                if (typeof customBindResult === 'boolean' && customBindResult === trueValue) {
+                    ret.binding = { data: {} };
+                    ret.elmRules = {};
+                    ret.elmRules[ruleName] = 'bind';
+                }
+            }
+        }
+        return ret;
+    }
+
+    function valjsRuleParseElementAttributes(attrName, $elm, rule) {
+        var attrs = $elm[0].attributes,
+            attr_index,
+            attrData = {},
+            attribute_name,
+            local_string,
+            tmp,
+            attrValue;
+
+
+        // Find the rest of the related attributes
+        for (attr_index = 0; attr_index < valjsLength(attrs); attr_index += 1) {
+            attribute_name = attrs[attr_index].name;
+            if (attribute_name.indexOf(attrName + '-') === 0 && attribute_name.length > attrName.length) {
+                tmp = valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1));
+                if (!attrs[attr_index].value) {
+                    // No value 
+                    attrData[tmp] = '';
+                    if (!valjsIsUndefined(rule.options)) {
+                        if (!valjsIsUndefined(rule.options[tmp])) {
+                            if (typeof rule.options[tmp] === "boolean") {
+                                attrData[tmp] = trueValue;
+                            }
+                        }
+                    }
+                } else {
+                    attrValue = attrs[attr_index].value;
+                    if (!valjsIsUndefined(rule.options)) {
+                        if (!valjsIsUndefined(rule.options[tmp])) {
+                            if (typeof rule.options[tmp] === "boolean") {
+                                if (attrValue.toLowerCase() === "true") {
+                                    attrValue = trueValue;
+                                } else if (attrValue.toLowerCase() === "false") {
+                                    attrValue = falseValue;
+                                }
+                            }
+                        }
+                    }
+
+                    // is it a msg?
+                    local_string = attrName + '-msg';
+                    if (attribute_name.indexOf(local_string) === 0) {
+                        if (attribute_name === local_string) {
+                            attrData.msg = attrData.msg || {};
+                            attrData.msg[keyNameDefault] = attrValue;
+                        } else if (attribute_name.indexOf(local_string + '-') !== -1) {
+                            attrData.msg = attrData.msg || {};
+                            attrData.msg[valjsAttributeNameToOptionName(attribute_name.substr((local_string + '-').length))] = attrValue;
+                        }
+                    } else {
+                        attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = attrValue;
+                    }
+                }
+            }
+        }
+        return attrData;
+    }
+
     function valjsGetElementConfigFromAttributes(valjs, $elm, rule, jsConfig) {
         var resolvedConfiguration = { },
             ruleName = rule.name,
@@ -516,35 +599,15 @@ window.ValJS = (function (window, $) {
             attrValue = valjsGetAttr($elm, attrName),
             binding = null,
             tmp,
-            customBindResult,
-            attrs,
             attrData,
-            attribute_name,
-            attr_index,
-            local_string,
             already_bound = !valjsIsUndefined(jsConfig.elmRules) && !valjsIsUndefined(jsConfig.elmRules[rule.name]);
 
         // If there is no data- attribute, try the customBind call:
         if (!already_bound) {
             if (valjsIsUndefined(attrValue)) {
-                if (valjs.config.allowRuleInitialization === trueValue) {
-                    customBindResult = rule.testElement({ form : valjs.$form, context : valjs.jqContext, rule: rule, element: $elm, valjs: valjs });
-                    if (typeof customBindResult === 'object') {
-                        if (!valjsIsUndefined(customBindResult[ruleName])) {
-                            binding = { data: {} };
-                            resolvedConfiguration.elmRules = {};
-                            resolvedConfiguration.elmRules[rule.name] = 'custombind';
-                        } else {
-                            binding = { data : customBindResult };
-                        }
-                    } else {
-                        if (typeof customBindResult === 'boolean' && customBindResult === trueValue) {
-                            binding = { data: {} };
-                            resolvedConfiguration.elmRules = {};
-                            resolvedConfiguration.elmRules[rule.name] = 'bind';
-                        }
-                    }
-                }
+                tmp = valjsRuleCustomBind(valjs, rule, $elm);
+                binding = tmp.binding;
+                resolvedConfiguration.elmRules = tmp.elmRules;
             } else {
                 resolvedConfiguration.elmRules = {};
                 resolvedConfiguration.elmRules[rule.name] = 'attribute';
@@ -570,53 +633,7 @@ window.ValJS = (function (window, $) {
             attrData = {};
 
             if (binding !== null) {
-                attrs = $elm[0].attributes;
-
-                // Find the rest of the related attributes
-                for (attr_index = 0; attr_index < valjsLength(attrs); attr_index += 1) {
-                    attribute_name = attrs[attr_index].name;
-                    if (attribute_name.indexOf(attrName + '-') === 0 && attribute_name.length > attrName.length) {
-                        tmp = valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1));
-                        if (!attrs[attr_index].value) {
-                            // No value 
-                            attrData[tmp] = '';
-                            if (!valjsIsUndefined(rule.options)) {
-                                if (!valjsIsUndefined(rule.options[tmp])) {
-                                    if (typeof rule.options[tmp] === "boolean") {
-                                        attrData[tmp] = trueValue;
-                                    }
-                                }
-                            }
-                        } else {
-                            attrValue = attrs[attr_index].value;
-                            if (!valjsIsUndefined(rule.options)) {
-                                if (!valjsIsUndefined(rule.options[tmp])) {
-                                    if (typeof rule.options[tmp] === "boolean") {
-                                        if (attrValue.toLowerCase() === "true") {
-                                            attrValue = trueValue;
-                                        } else if (attrValue.toLowerCase() === "false") {
-                                            attrValue = falseValue;
-                                        }
-                                    }
-                                }
-                            }
-
-                            // is it a msg?
-                            local_string = attrName + '-msg';
-                            if (attribute_name.indexOf(local_string) === 0) {
-                                if (attribute_name === local_string) {
-                                    attrData.msg = attrData.msg || {};
-                                    attrData.msg[keyNameDefault] = attrValue;
-                                } else if (attribute_name.indexOf(local_string + '-') !== -1) {
-                                    attrData.msg = attrData.msg || {};
-                                    attrData.msg[valjsAttributeNameToOptionName(attribute_name.substr((local_string + '-').length))] = attrValue;
-                                }
-                            } else {
-                                attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = attrValue;
-                            }
-                        }
-                    }
-                }
+                attrData = valjsRuleParseElementAttributes(attrName, $elm, rule);
             }
 
             resolvedConfiguration = valjsExtend(trueValue, {}, resolvedConfiguration, binding.data, attrData);
