@@ -12,11 +12,15 @@ jQuery ValJS is a jQuery Form Validation library with focus on three main things
 
 ### Version
 
+0.7.5 2014-01-04
+- Refactored valjsExtractDateParts  (complexity, 49)
+- Added valjsGetDatePattern
+
 0.7.4 2014-01-04
-- Refactored valjsGetElementConfigFromAttributes (complexity, 54)
+- Refactored valjsGetElementConfigFromAttributes (complexity, 54) = 21
 
 0.71 2014-01-03
-- Refactored valjsInvokeElementValidation (trying to lower complexity, 55)
+- Refactored valjsInvokeElementValidation (trying to lower complexity, 55) = 38
 
 0.7 2014-12-31
 - Completely rewritten code over a few weeks time

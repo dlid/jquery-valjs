@@ -1,4 +1,4 @@
-/*! ValJS v0.7.4 (2015-01-04) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.5 (2015-01-04) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -13,7 +13,7 @@ window.ValJS = (function (window, $) {
     /** @global $ */
     var dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '0.7.4';
+            this.valjsv = '0.7.5';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -1754,54 +1754,44 @@ window.ValJS = (function (window, $) {
         return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
     }*/
 
-    function valjsExtractDateParts(dateString, format, macros) {
-
-        if (dateString === 'now') {
-            return {date: new Date()};
-        }
-        var i, n = 0,
-            macroPositions = [],
-            indexes = {},
-            pattern = '',
-            find,
-            replace,
-            isDate,
-            isDateTime,
-            isWeek,
-            isDateRelated,
-            matches,
-            ret = null,
-            d,
-            re;
+    function valjsGetDatePattern(format, macros) {
+        var i, indexes = {}, n = 0, find, replace,
+            ret = {
+                isDate : falseValue,
+                isWeek : falseValue,
+                isDateRelated : falseValue,
+                pattern : '',
+                macroPositions : []
+            };
 
         for (i = 0; i < valjsLength(macros); i += 1) {
-            macroPositions.push([macros[i], valjsIndexOf(format, '%' + macros[i])]);
+            ret.macroPositions.push([macros[i], valjsIndexOf(format, '%' + macros[i])]);
             if (macros[i] === 'm') {
-                isDate = trueValue;
+                ret.isDate = trueValue;
             } else if (macros[i] === 'H') {
                 // One macro is hour, so it's a datetime
-                isDateTime = trueValue;
+                ret.isDateTime = trueValue;
             } else if (macros[i] === 'w') {
-                isWeek = trueValue;
+                ret.isWeek = trueValue;
             }
         }
 
-        isDateRelated = isDate || isDateTime;
-        isDate = !isWeek && !isDateTime;
+        ret.isDateRelated = ret.isDate || ret.isDateTime;
+        ret.isDate = !ret.isWeek && !ret.isDateTime;
 
-        macroPositions.sort(function (a, b) {
+        ret.macroPositions.sort(function (a, b) {
             a = a[1];
             b = b[1];
             return a < b ? -1 : (a > b ? 1 : 0);
         });
 
-        for (i = 0; i < macroPositions.length; i += 1) {
-            if (macroPositions[i][1] !== -1) {
-                indexes[macroPositions[i][0]] = n;
+        for (i = 0; i < ret.macroPositions.length; i += 1) {
+            if (ret.macroPositions[i][1] !== -1) {
+                indexes[ret.macroPositions[i][0]] = n;
                 n += 1;
             }
         }
-        pattern = format.replace('.', '\\.').replace('(', '\\(').replace(')', '\\)').replace(/\\/g, '\\\\');
+        ret.pattern = format.replace('.', '\\.').replace('(', '\\(').replace(')', '\\)').replace(/\\/g, '\\\\');
 
         for (i = 0; i < valjsLength(macros); i += 1) {
             find = '%' + macros[i];
@@ -1813,20 +1803,39 @@ window.ValJS = (function (window, $) {
                 replace = "(\\d{1,2})";
                 break;
             }
-            pattern = pattern.replace(find, replace);
+            ret.pattern = ret.pattern.replace(find, replace);
         }
-        re = new RegExp("^" + pattern + "$");
+        return ret;
+    }
+
+    function valjsExtractDateParts(dateString, format, macros) {
+
+        if (dateString === 'now') {
+            return {date: new Date()};
+        }
+        var i,
+            data,
+            find,
+            matches,
+            ret = null,
+            d,
+            re;
+
+        data = valjsGetDatePattern(format, macros);
+
+        // macroPositions, pattern, dateString, 
+        re = new RegExp("^" + data.pattern + "$");
         if (re) {
             matches = re.exec(dateString);
             if (matches) {
                 find = {};
                 for (i = 1; i < matches.length; i += 1) {
-                    find[macroPositions[i - 1][0]] = valjsParseIntBase10(matches[i]);
+                    find[data.macroPositions[i - 1][0]] = valjsParseIntBase10(matches[i]);
                 }
 
-                if (isDateRelated) {
+                if (data.isDateRelated) {
                     find.m -= 1;
-                    if (isDate) {
+                    if (data.isDate) {
                         d = new Date(find.y, find.m, find.d);
                     } else {
                         d = new Date(find.y, find.m, find.d, find.H, find.M);
@@ -1834,7 +1843,7 @@ window.ValJS = (function (window, $) {
                     if (d.getFullYear() === find.y) {
                         if (d.getMonth() === find.m) {
                             if (d.getDate() === find.d) {
-                                if (isDateTime) {
+                                if (data.isDateTime) {
                                     if (d.getHours() === find.H && d.getMinutes() === find.M) {
                                         ret = valjsExtend(trueValue, {}, find, {'date' : d});
                                     }
