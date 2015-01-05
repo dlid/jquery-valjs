@@ -1809,6 +1809,44 @@ window.ValJS = (function (window, $) {
         return ret;
     }
 
+    function valjsMapDateRelatedDateParts(data, find) {
+        var d, ret;
+        find.m -= 1;
+        if (data.isDate) {
+            d = new Date(find.y, find.m, find.d);
+        } else {
+            d = new Date(find.y, find.m, find.d, find.H, find.M);
+        }
+        if (d.getFullYear() === find.y) {
+            if (d.getMonth() === find.m) {
+                if (d.getDate() === find.d) {
+                    if (data.isDateTime) {
+                        if (d.getHours() === find.H && d.getMinutes() === find.M) {
+                            ret = valjsExtend(trueValue, {}, find, {'date' : d});
+                        }
+                    } else {
+                        ret = valjsExtend(trueValue, {}, find, {'date' : d});
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
+    function valjsMapWeekDateParts(find) {
+        var d, ret;
+        d = getDateOfISOWeek(find.y, find.w);
+        if (find.w === 1) {
+            if (valjsGetWeekYear(d) === find.y - 1) {
+                ret = valjsExtend(trueValue, {}, find, {'date' : d});
+            }
+        }
+        if (d.getFullYear() === valjsGetWeekYear(d) && d.getFullYear() === find.y) {
+            ret = valjsExtend(trueValue, {}, find, {'date' : d});
+        }
+        return ret;
+    }
+
     function valjsExtractDateParts(dateString, format, macros) {
 
         if (dateString === 'now') {
@@ -1819,12 +1857,10 @@ window.ValJS = (function (window, $) {
             find,
             matches,
             ret = null,
-            d,
             re;
 
         data = valjsGetDatePattern(format, macros);
 
-        // macroPositions, pattern, dateString, 
         re = new RegExp("^" + data.pattern + "$");
         if (re) {
             matches = re.exec(dateString);
@@ -1833,37 +1869,10 @@ window.ValJS = (function (window, $) {
                 for (i = 1; i < matches.length; i += 1) {
                     find[data.macroPositions[i - 1][0]] = valjsParseIntBase10(matches[i]);
                 }
-
                 if (data.isDateRelated) {
-                    find.m -= 1;
-                    if (data.isDate) {
-                        d = new Date(find.y, find.m, find.d);
-                    } else {
-                        d = new Date(find.y, find.m, find.d, find.H, find.M);
-                    }
-                    if (d.getFullYear() === find.y) {
-                        if (d.getMonth() === find.m) {
-                            if (d.getDate() === find.d) {
-                                if (data.isDateTime) {
-                                    if (d.getHours() === find.H && d.getMinutes() === find.M) {
-                                        ret = valjsExtend(trueValue, {}, find, {'date' : d});
-                                    }
-                                } else {
-                                    ret = valjsExtend(trueValue, {}, find, {'date' : d});
-                                }
-                            }
-                        }
-                    }
+                    ret = valjsMapDateRelatedDateParts(data, find);
                 } else {
-                    d = getDateOfISOWeek(find.y, find.w);
-                    if (find.w === 1) {
-                        if (valjsGetWeekYear(d) === find.y - 1) {
-                            ret = valjsExtend(trueValue, {}, find, {'date' : d});
-                        }
-                    }
-                    if (d.getFullYear() === valjsGetWeekYear(d) && d.getFullYear() === find.y) {
-                        ret = valjsExtend(trueValue, {}, find, {'date' : d});
-                    }
+                    ret = valjsMapWeekDateParts(find);
                 }
 
             }
