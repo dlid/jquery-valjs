@@ -2472,6 +2472,46 @@ window.ValJS = (function (window, $) {
         }
     });
 
+    function valjsValidateDomain(domain, domainLen, local, localLen) {
+        if (localLen < 1 || localLen > 64) {
+            // local part length exceeded
+            return false;
+        }
+        if (domainLen < 1 || domainLen > 255) {
+            // domain part length exceeded
+            return false;
+        }
+        if (local[0] === '.' || local[localLen - 1] === '.') {
+            // local part starts or ends with '.'
+            return false;
+        }
+        if (/\.\./.test(local)) {
+            // local part has two consecutive dots
+            return false;
+        }
+        if (!/^[åäöA-Za-z0-9\\-\\.]+$/.test(domain)) {
+            // character not valid in domain part
+            return false;
+        }
+        if (!/^[åäöA-Za-z0-9\\-\\.]+$/.test(domain)) {
+            // character not valid in domain part
+            return false;
+        }
+        if (/\.\./.test(domain)) {
+            // domain part has two consecutive dots
+            return false;
+        }
+        if (!/^(\.|[A-Za-z0-9!#%&`_=\/$\'*+?\^{}|~.\-])+$/.test(local.replace("\\\\", ""))) {
+            // character not valid in local part unless 
+            // local part is quoted
+            if (!/^"(\\\\"|[^"])+"$/.test(local.replace("\\\\", ""))) {
+                return false;
+            }
+        }
+        return true;
+
+    }
+
     valjsAddRule('email', {
 
         options : {
@@ -2506,35 +2546,7 @@ window.ValJS = (function (window, $) {
                     local = v.substr(0, atIndex);
                     localLen = local.length;
                     domainLen = domain.length;
-                    if (localLen < 1 || localLen > 64) {
-                        // local part length exceeded
-                        isValid = falseValue;
-                    } else if (domainLen < 1 || domainLen > 255) {
-                        // domain part length exceeded
-                        isValid = falseValue;
-                    } else if (local[0] === '.' || local[localLen - 1] === '.') {
-                        // local part starts or ends with '.'
-                        isValid = falseValue;
-                    } else if (/\.\./.test(local)) {
-                        // local part has two consecutive dots
-                        isValid = falseValue;
-                    } else if (!/^[åäöA-Za-z0-9\\-\\.]+$/.test(domain)) {
-                        // character not valid in domain part
-                        isValid = falseValue;
-                    } else if (!/^[åäöA-Za-z0-9\\-\\.]+$/.test(domain)) {
-                        // character not valid in domain part
-                        isValid = falseValue;
-                    } else if (/\.\./.test(domain)) {
-                        // domain part has two consecutive dots
-                        isValid = falseValue;
-                    } else if (!/^(\.|[A-Za-z0-9!#%&`_=\/$\'*+?\^{}|~.\-])+$/.test(local.replace("\\\\", ""))) {
-                        // character not valid in local part unless 
-                        // local part is quoted
-                        if (!/^"(\\\\"|[^"])+"$/.test(local.replace("\\\\", ""))) {
-                            isValid = falseValue;
-                        }
-                    }
-
+                    isValid = valjsValidateDomain(domain, domainLen, local, localLen);
                     if (valjsRunArgs.config.domain) {
                         if (!/\.[a-z]{2,4}$/.test(v)) {
                             isValid = falseValue;
