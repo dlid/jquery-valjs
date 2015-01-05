@@ -534,58 +534,65 @@ window.ValJS = (function (window, $) {
         return ret;
     }
 
+    function valjsParseEmptyRuleAttr(rule, optionName) {
+        var ret = {};
+        if (!valjsIsUndefined(rule.options)) {
+            if (!valjsIsUndefined(rule.options[optionName])) {
+                if (typeof rule.options[optionName] === "boolean") {
+                    return trueValue;
+                }
+            }
+        }
+        return ret;
+    }
+
+    function valjsParseRuleAttrValue(rule, attrName, attrValue) {
+        if (!valjsIsUndefined(rule.options)) {
+            if (!valjsIsUndefined(rule.options[attrName])) {
+                if (typeof rule.options[attrName] === "boolean") {
+                    if (attrValue.toLowerCase() === "true") {
+                        attrValue = trueValue;
+                    } else if (attrValue.toLowerCase() === "false") {
+                        attrValue = falseValue;
+                    }
+                }
+            }
+        }
+        return attrValue;
+    }
+
+    function valjsRuleParseElementAttributeAsMessage(attrName, attribute_name, local_string, attrValue, attrData) {
+        if (attribute_name.indexOf(local_string) === 0) {
+            if (attribute_name === local_string) {
+                attrData.msg = attrData.msg || {};
+                attrData.msg[keyNameDefault] = attrValue;
+            } else if (attribute_name.indexOf(local_string + '-') !== -1) {
+                attrData.msg = attrData.msg || {};
+                attrData.msg[valjsAttributeNameToOptionName(attribute_name.substr((local_string + '-').length))] = attrValue;
+            }
+        } else {
+            attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = attrValue;
+        }
+        return attrData;
+    }
+
     function valjsRuleParseElementAttributes(attrName, $elm, rule) {
         var attrs = $elm[0].attributes,
             attr_index,
             attrData = {},
             attribute_name,
-            local_string,
             tmp,
             attrValue;
 
-
-        // Find the rest of the related attributes
         for (attr_index = 0; attr_index < valjsLength(attrs); attr_index += 1) {
             attribute_name = attrs[attr_index].name;
             if (attribute_name.indexOf(attrName + '-') === 0 && attribute_name.length > attrName.length) {
                 tmp = valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1));
                 if (!attrs[attr_index].value) {
-                    // No value 
-                    attrData[tmp] = '';
-                    if (!valjsIsUndefined(rule.options)) {
-                        if (!valjsIsUndefined(rule.options[tmp])) {
-                            if (typeof rule.options[tmp] === "boolean") {
-                                attrData[tmp] = trueValue;
-                            }
-                        }
-                    }
+                    attrData[tmp] = valjsParseEmptyRuleAttr(rule, tmp);
                 } else {
-                    attrValue = attrs[attr_index].value;
-                    if (!valjsIsUndefined(rule.options)) {
-                        if (!valjsIsUndefined(rule.options[tmp])) {
-                            if (typeof rule.options[tmp] === "boolean") {
-                                if (attrValue.toLowerCase() === "true") {
-                                    attrValue = trueValue;
-                                } else if (attrValue.toLowerCase() === "false") {
-                                    attrValue = falseValue;
-                                }
-                            }
-                        }
-                    }
-
-                    // is it a msg?
-                    local_string = attrName + '-msg';
-                    if (attribute_name.indexOf(local_string) === 0) {
-                        if (attribute_name === local_string) {
-                            attrData.msg = attrData.msg || {};
-                            attrData.msg[keyNameDefault] = attrValue;
-                        } else if (attribute_name.indexOf(local_string + '-') !== -1) {
-                            attrData.msg = attrData.msg || {};
-                            attrData.msg[valjsAttributeNameToOptionName(attribute_name.substr((local_string + '-').length))] = attrValue;
-                        }
-                    } else {
-                        attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = attrValue;
-                    }
+                    attrValue = valjsParseRuleAttrValue(rule, attrName, attrs[attr_index].value);
+                    attrData = valjsRuleParseElementAttributeAsMessage(attrName, attribute_name, attrName + '-msg', attrValue, attrData);
                 }
             }
         }
