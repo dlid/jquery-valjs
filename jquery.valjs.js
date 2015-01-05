@@ -1,4 +1,4 @@
-/*! ValJS v0.7.5 (2015-01-04) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.5 (2015-01-05) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -1066,6 +1066,34 @@ window.ValJS = (function (window, $) {
         });
     }
 
+    function valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event) {
+        var rule_index,
+            rules = valjsGetElementBoundRules($elm),
+            currentRule,
+            config,
+            ret = {
+                hash : [],
+                fail : [],
+                success : []
+            },
+            result;
+
+        for (rule_index = 0; rule_index < valjsLength(ruleNames); rule_index += 1) {
+            currentRule = wj.rules[ruleNames[rule_index]];
+            config = rules[ruleNames[rule_index]];
+            result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
+
+            if (result.ok === false) {
+                ret.hash.push(currentRule.name + result.result);
+                ret.fail.push(valjsExtend(true, {}, { msg : result.result }, { rule : currentRule.name}));
+            } else {
+                ret.success.push(valjsExtend(true, {}, result.result, { rule : currentRule.name}));
+            }
+        }
+        ret.hash = valjsStringChecksum((submit ? '1' : '0') + ret.hash.join('|'));
+        //elementValidationResult.hash = (new Date());
+        return ret;
+    }
 
     function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit) { // , valjs, event
         if (valjs.config.liveValidation === falseValue && !submit) {
@@ -1080,17 +1108,11 @@ window.ValJS = (function (window, $) {
 
         var rules = valjsGetElementBoundRules($elm),
             ruleNames = rules ? rules.ruleNames : null,
-            rule_index,
-            currentRule,
-            config,
-            result,
             label,
-            validations = { fail: [], success: [] },
             e,
             refreshData = {},
-            statusHash = [],
-            hashString = "",
-            previousHash = $elm.data(dataNameValJsHash);
+            previousHash = $elm.data(dataNameValJsHash),
+            elementValidationResult;
 
         if (valjsIsUndefined(submit)) {
             submit = falseValue;
@@ -1100,43 +1122,22 @@ window.ValJS = (function (window, $) {
             elementValue = valjsGetElementValue($elm, event);
         }
 
-        for (rule_index = 0; rule_index < valjsLength(ruleNames); rule_index += 1) {
-            currentRule = wj.rules[ruleNames[rule_index]];
-            config = rules[ruleNames[rule_index]];
-            result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
+        elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
 
-            if (result.ok === false) {
-                statusHash.push(currentRule.name + result.result);
-                validations.fail.push(valjsExtend(true, {}, { msg : result.result }, { rule : currentRule.name}));
-            } else {
-                validations.success.push(valjsExtend(true, {}, result.result, { rule : currentRule.name}));
-            }
-        }
-
-        //
-        // Create a hash based on status
-        // Only raise events when things have actually changed
-        //
-        hashString = valjsStringChecksum((submit ? '1' : '0') + statusHash.join('|'));
-        if (submit) {
-            // Submit, then we always check
-            hashString = (new Date());
-        }
-
-        if (previousHash === hashString && valjs.config.alwaysTriggerFieldEvents === falseValue) {
-
+        if (previousHash === elementValidationResult.hash && valjs.config.alwaysTriggerFieldEvents === falseValue) {
             return $elm.data(dataNameValjsValidationStatus);
         }
-        $elm.data(dataNameValJsHash, hashString);
+
+        $elm.data(dataNameValJsHash, elementValidationResult.hash);
 
         // The event listeners can clear the validation
         // details entirely, we take that as a "the field is valid!"
-        if (!valjsIsUndefined(valjs) && valjsLength(validations.fail) > 0) {
+        if (!valjsIsUndefined(valjs) && valjsLength(elementValidationResult.fail) > 0) {
             refreshData = {
                 status: 'invalid',
                 state: submit ? 'error' : 'warning',
-                message: validations.fail[0].msg,
-                rule: validations.fail[0].rule
+                message: elementValidationResult.fail[0].msg,
+                rule: elementValidationResult.fail[0].rule
             };
             label = valjsFindLabelElement($elm, valjs);
             if (label) {
