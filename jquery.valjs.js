@@ -1102,43 +1102,10 @@ window.ValJS = (function (window, $) {
         return ret;
     }
 
-    function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit) { // , valjs, event
-        if (valjs.config.liveValidation === falseValue && !submit) {
-            return;
-        }
-        if (!valjsTestIsElementReadyForValidation($elm)) {
-            if ($elm.data(dataNameValJsHash)) {
-                valjsResetElementStatus($elm, valjs);
-            }
-            return;
-        }
 
-        var rules = valjsGetElementBoundRules($elm),
-            ruleNames = rules ? rules.ruleNames : null,
-            label,
-            e,
-            refreshData = {},
-            previousHash = $elm.data(dataNameValJsHash),
-            elementValidationResult;
+    function valjsTriggerElementValidationEvent(valjs, $elm, elementValidationResult, submit) {
+        var refreshData, label, e, isValid = -1;
 
-        if (valjsIsUndefined(submit)) {
-            submit = falseValue;
-        }
-
-        if (valjsIsUndefined(elementValue)) {
-            elementValue = valjsGetElementValue($elm, event);
-        }
-
-        elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
-
-        if (previousHash === elementValidationResult.hash && valjs.config.alwaysTriggerFieldEvents === falseValue) {
-            return $elm.data(dataNameValjsValidationStatus);
-        }
-
-        $elm.data(dataNameValJsHash, elementValidationResult.hash);
-
-        // The event listeners can clear the validation
-        // details entirely, we take that as a "the field is valid!"
         if (!valjsIsUndefined(valjs) && valjsLength(elementValidationResult.fail) > 0) {
             refreshData = {
                 status: 'invalid',
@@ -1150,11 +1117,12 @@ window.ValJS = (function (window, $) {
             if (label) {
                 refreshData.label = label.text();
             }
-            $elm.data(dataNameValJsIsValid, -1);
         } else {
             refreshData = { status: 'valid' };
-            $elm.data(dataNameValJsIsValid, 1);
+            isValid = 1;
         }
+
+        $elm.data(dataNameValJsIsValid, isValid);
 
         $elm.data(dataNameValjsValidationStatus, refreshData);
 
@@ -1165,9 +1133,43 @@ window.ValJS = (function (window, $) {
         if (!e.isDefaultPrevented()) {
             valjsRefreshField(valjs, $elm, refreshData);
         }
+        return isValid === 1 ? isValid : refreshData;
+    }
 
-        return $elm.data(dataNameValJsIsValid) === 1 ? trueValue : refreshData;
+    function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit) { // , valjs, event
+        if (valjs.config.liveValidation === falseValue && !submit) {
+            return;
+        }
+        if (!valjsTestIsElementReadyForValidation($elm)) {
+            if ($elm.data(dataNameValJsHash)) {
+                valjsResetElementStatus($elm, valjs);
+            }
+            return;
+        }
 
+        if (valjsIsUndefined(submit)) {
+            submit = falseValue;
+        }
+
+        if (valjsIsUndefined(elementValue)) {
+            elementValue = valjsGetElementValue($elm, event);
+        }
+
+        var rules = valjsGetElementBoundRules($elm),
+            ruleNames = rules ? rules.ruleNames : null,
+            isValid,
+            previousHash = $elm.data(dataNameValJsHash),
+            elementValidationResult;
+
+        // Get validation results and make sure hash is updatd
+        elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
+        if (previousHash === elementValidationResult.hash && valjs.config.alwaysTriggerFieldEvents === falseValue) {
+            return $elm.data(dataNameValjsValidationStatus);
+        }
+        $elm.data(dataNameValJsHash, elementValidationResult.hash);
+
+        isValid = valjsTriggerElementValidationEvent(valjs, $elm, elementValidationResult, submit);
+        return isValid;
     }
 
     function valjsTestElementIsBound($elm) {
