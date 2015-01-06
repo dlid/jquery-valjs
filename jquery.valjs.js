@@ -13,7 +13,8 @@ window.ValJS = (function (window, $) {
 
 
     /** @global $ */
-    var dataNameValJsInstance = 'vjs-i',
+    var nullValue = null,
+        dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
             this.valjsv = '0.7.6';
             this.context = elm;
@@ -21,7 +22,7 @@ window.ValJS = (function (window, $) {
             this.jqContext.data(dataNameValJsInstance, this);
             this.options = options;
             this.metadata = this.jqContext.data('valjs');
-            this.$form = null;
+            this.$form = nullValue;
 
             this.vars = {
                 off: 'valjs__off', // data()-variable set on fields with validation disabled
@@ -34,23 +35,23 @@ window.ValJS = (function (window, $) {
         superglobals = (window.ValJS && window.ValJS.global) ? window.ValJS.global : {},
         dElmType = 'valjs-ty',
         wj = ValJS,
+
         trueValue = true,
         falseValue = false,
         submitQuery = 'input[type="submit"],button[type="submit"],button:not([type]),input[type="image"]',
         selectTypeName = 'select',
         msgBadArgs = "Bad args",
-        dataNameValJsValueCache = 'vjs-vc',
-        dataNameValJsHash = 'vjs-h',
-        dataNameValJsContext = 'vjs-ct',
-        dataNameValJsIsValid = 'vjs-v',
-        dataNameValJsFormContext = 'vjs-fct',
+
+        // Stored in Binding object from 0.7.6
+        dataNameValJsValueCache = 'c',
+        dataNameValJsHash = 'h',
+        dataNameValJsIsValid = 'v',
+        dataNameValjsValidationStatus = 's',
+
+
+        dataNameValJsFormContext = 'vjsf',
         dataNameValJsBound = 'vjs-b',
         dataNameValjsBinding = 'vjs-bn',
-        dataNameValjsConfig = 'vjs-cfg',
-        dataNameValjsElementMsg = 'vjs-msge',
-
-        dataNameValjsValidationStatus = 'vjs-vs',
-
         keyNameDefault = "error",
         eventNamespace = '.valjs',
 
@@ -71,6 +72,11 @@ window.ValJS = (function (window, $) {
     function valjsExtend() {
         var args = Array.prototype.slice.call(arguments);
         return $.extend.apply($, args);
+    }
+
+    function valjsData(jqElement) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        return $.prototype.data.apply(jqElement, args);
     }
 
     /**
@@ -128,7 +134,7 @@ window.ValJS = (function (window, $) {
      */
     function valjsLength(o) {
         /** */
-        if (!valjsIsUndefined(o) && o !== null && !valjsIsUndefined(o.length)) {
+        if (!valjsIsUndefined(o) && o !== nullValue && !valjsIsUndefined(o.length)) {
             return o.length;
         }
         return 0;
@@ -268,6 +274,7 @@ window.ValJS = (function (window, $) {
         return ret.join(' ');
     }
 
+
     /**
      * Method to invoke the findMsg-method for an element
      * @param  {object} options Object containing the element property
@@ -276,9 +283,9 @@ window.ValJS = (function (window, $) {
     function invokeElementFindMsgFunction(options) {
         var $elm = options.element, cfg;
         if (!$elm) {
-            return null;
+            return nullValue;
         }
-        cfg = $elm.data(dataNameValjsBinding).getCfg();
+        cfg = valjsData($elm, dataNameValjsBinding).getCfg();
         return cfg.iFindMsgFn(options);
     }
 
@@ -326,19 +333,22 @@ window.ValJS = (function (window, $) {
      * @return {*}      [description]
      */
     function valjsGetElementType($elm) {
-
+        var elmType = valjsData($elm, dElmType),
+            type,
+            result,
+            allowedTypes;
         // We cache this check
-        if (!valjsIsUndefined($elm.data(dElmType))) {
-            return $elm.data(dElmType);
+        if (!valjsIsUndefined(elmType)) {
+            return valjsData($elm, dElmType);
         }
 
-        var type = $elm.prop('tagName').toLowerCase(),
-            result = {
-                type: null
-            },
+        type = $elm.prop('tagName').toLowerCase();
+        result = {
+            type: nullValue
+        };
 
-            // allowedTypes can be returned as "type"
-            allowedTypes = ['text', 'checkbox', 'file', 'radio', 'submit'];
+        // allowedTypes can be returned as "type"
+        allowedTypes = ['text', 'checkbox', 'file', 'radio', 'submit'];
 
         if (type === 'input') {
             type = $elm.prop('type').toLowerCase();
@@ -361,7 +371,7 @@ window.ValJS = (function (window, $) {
             }
         }
 
-        $elm.data(dElmType, result);
+        valjsData($elm, dElmType, result);
         return result;
     }
 
@@ -372,18 +382,19 @@ window.ValJS = (function (window, $) {
      * @return {object}       Object contining properties with the element value
      */
     function valjsGetElementValue($elm, event) {
-        var et = valjsGetElementType($elm),
-            originalValue = $elm.data(dataNameValJsValueCache),
-            value = null,
+        var elementType = valjsGetElementType($elm).type,
+            binding = valjsData($elm, dataNameValjsBinding),
+            originalValue = binding ? binding.g(dataNameValJsValueCache) : nullValue,
+            value = nullValue,
             ret = {
-                value: null,
+                value: nullValue,
                 upd: trueValue // true if the value has changed since last time
             };
 
-        if (et.type === 'submit') {
+        if (elementType === 'submit') {
             return ret;
         }
-        switch (et.type) {
+        switch (elementType) {
         case 'checkbox':
         case 'radio':
             value = $elm.prop('checked');
@@ -416,11 +427,13 @@ window.ValJS = (function (window, $) {
             }
         }
 
-        if (ret.value === null) {
+        if (ret.value === nullValue) {
             ret.value = value;
         }
 
-        $elm.data(dataNameValJsValueCache, value);
+        if (binding) {
+            binding.s(dataNameValJsValueCache, value);
+        }
 
         return ret;
 
@@ -504,7 +517,7 @@ window.ValJS = (function (window, $) {
             match = myRegexp.exec(value),
             newValue = String(value);
 
-        while (match !== null) {
+        while (match !== nullValue) {
             newValue = newValue.replace(match[0], String(match[1].toUpperCase()));
             match = myRegexp.exec(value);
         }
@@ -513,7 +526,7 @@ window.ValJS = (function (window, $) {
     }
 
     function valjsRuleCustomBind(valjs, rule, $elm) {
-        var ret = { binding : null, elmRules : undefined},
+        var ret = { binding : nullValue, elmRules : undefined},
             customBindResult,
             ruleName = rule.name;
         if (valjs.config.allowRuleInitialization === trueValue) {
@@ -618,7 +631,7 @@ window.ValJS = (function (window, $) {
             ruleName = rule.name,
             attrName = "data-" + valjs.config.attrPrefix + ruleName,
             attrValue = valjsGetAttr($elm, attrName),
-            binding = null,
+            binding = nullValue,
             tmp,
             attrData,
             already_bound = !valjsIsUndefined(jsConfig.elmRules) && !valjsIsUndefined(jsConfig.elmRules[rule.name]);
@@ -653,7 +666,7 @@ window.ValJS = (function (window, $) {
             resolvedConfiguration.elmRules[rule.name] = 1;
             attrData = {};
 
-            if (binding !== null) {
+            if (binding !== nullValue) {
                 attrData = valjsRuleParseElementAttributes(attrName, $elm, rule);
             }
 
@@ -680,7 +693,7 @@ window.ValJS = (function (window, $) {
 
     function valjsFindLabelElement($elm, valjs) {
         var id = $elm.attr('id'),
-            labelElement = (id ? valjsSelectElements("label[for='" + $elm.attr('id') + "']", valjs.jqContext) : null);
+            labelElement = (id ? valjsSelectElements("label[for='" + $elm.attr('id') + "']", valjs.jqContext) : nullValue);
         if (!id || valjsLength(labelElement) === 0) {
             if ($elm.parent().get(0).nodeName === 'LABEL') {
                 labelElement = $elm.parent();
@@ -714,10 +727,10 @@ window.ValJS = (function (window, $) {
         /** @type { {hide : function()} | * } */
         var $msg,
             status = refresh.status,
-            elmConfig = $elm.data(dataNameValjsBinding).getCfg(),
+            elmConfig = valjsData($elm, dataNameValjsBinding).getCfg(),
             state = refresh.state,
             message = refresh.message,
-            modifers = null,
+            modifers = nullValue,
             hasMsg = message !== "",
             createMsg = hasMsg && status === 'invalid',
             $lbl,
@@ -753,7 +766,6 @@ window.ValJS = (function (window, $) {
             } else {
                 $msg.html(message);
             }
-            $elm.data(dataNameValjsElementMsg, $msg);
             valjsSetClass($msg, valjs, 'msg', modifers);
         }
 
@@ -765,14 +777,15 @@ window.ValJS = (function (window, $) {
     }
 
     function valjsResetElementStatus($elm, valjs) {
-        valjsRemoveData($elm, dataNameValJsHash);
-        valjsRemoveData($elm, dataNameValJsIsValid);
-        valjsRemoveData($elm, dataNameValjsValidationStatus);
+        var binding = valjsData($elm, dataNameValjsBinding),
+            refreshData,
+            e;
+        binding.r(dataNameValjsValidationStatus);
 
-        var refreshData = { status: 'unknown' },
-            e = valjsInvokeEvent($elm, 'refreshfield', {
-                valjs: valjsExtend(refreshData, { binding : $elm.data(dataNameValjsBinding), context : valjs.jqContext, form : valjs.$form, element : $elm})
-            });
+        refreshData = { status: 'unknown' };
+        e = valjsInvokeEvent($elm, 'refreshfield', {
+            valjs: valjsExtend(refreshData, { binding : binding, context : valjs.jqContext, form : valjs.$form, element : $elm})
+        });
 
         if (!e.isDefaultPrevented()) {
             valjsRefreshField(valjs, $elm, refreshData);
@@ -794,11 +807,6 @@ window.ValJS = (function (window, $) {
         valjsRemoveData($elm, dataNameValjsBinding);
         valjsRemoveData($elm, dElmType);
         valjsRemoveData($elm, dataNameValJsInstance);
-        valjsRemoveData($elm, dataNameValjsConfig);
-        valjsRemoveData($elm, dataNameValJsContext);
-        valjsRemoveData($elm, dataNameValJsHash);
-        valjsRemoveData($elm, dataNameValJsIsValid);
-        valjsRemoveData($elm, dataNameValjsValidationStatus);
         valjsRemoveData($elm, dataNameValJsValueCache);
     }
 
@@ -807,7 +815,7 @@ window.ValJS = (function (window, $) {
     }
 
     function valjsGetElementBoundRules($elm) {
-        var rules = $elm.data(dataNameValjsBinding).getCfg();
+        var rules = valjsData($elm, dataNameValjsBinding).getCfg();
         return rules;
     }
 
@@ -841,7 +849,7 @@ window.ValJS = (function (window, $) {
 
     function valjsParseRuleResult(result, execParameters) {
         var resultObject,
-            returnValue = { ok : trueValue, result : null },
+            returnValue = { ok : trueValue, result : nullValue },
             rule = execParameters.rule;
 
         if (result !== trueValue && (typeof result !== "object" || result.msg)) {
@@ -854,8 +862,8 @@ window.ValJS = (function (window, $) {
             }
 
             // it should be used if it's been specified otherwhere
-            if (rule.options && rule.options.msg && rule.options.msg[keyNameDefault] === null) {
-                if (execParameters.config.msg[keyNameDefault] !== null) {
+            if (rule.options && rule.options.msg && rule.options.msg[keyNameDefault] === nullValue) {
+                if (execParameters.config.msg[keyNameDefault] !== nullValue) {
                     execParameters.msgName = keyNameDefault;
                 }
             }
@@ -872,7 +880,7 @@ window.ValJS = (function (window, $) {
 
     function valjsTriggerElementValidationEvent(valjs, $elm, elementValidationResult, submit) {
         var refreshData, label, e, isValid = -1,
-            binding = $elm.data(dataNameValjsBinding);
+            binding = valjsData($elm, dataNameValjsBinding);
 
         if (!valjsIsUndefined(valjs) && valjsLength(elementValidationResult.fail) > 0) {
             binding.setRuleContext(elementValidationResult.fail[0].rule);
@@ -890,10 +898,9 @@ window.ValJS = (function (window, $) {
             refreshData = { status: 'valid' };
             isValid = 1;
         }
+        binding.s(dataNameValJsIsValid, isValid);
 
-        $elm.data(dataNameValJsIsValid, isValid);
-
-        $elm.data(dataNameValjsValidationStatus, refreshData);
+        binding.s(dataNameValjsValidationStatus, refreshData);
 
         e = valjsInvokeEvent($elm, 'refreshfield', {
             valjs: valjsExtend(refreshData, { binding : binding, context : valjs.jqContext, form : valjs.$form, element : $elm})
@@ -902,7 +909,7 @@ window.ValJS = (function (window, $) {
         if (!e.isDefaultPrevented()) {
             valjsRefreshField(valjs, $elm, refreshData);
         }
-        binding.setRuleContext(null);
+        binding.setRuleContext(nullValue);
         return isValid === 1 ? isValid : refreshData;
     }
 
@@ -910,7 +917,7 @@ window.ValJS = (function (window, $) {
     function valjsRuleRun(valjs, $elm, elementValue, event, rule, config) {
 
         var execParameters = {
-                'binding' : $elm.data(dataNameValjsBinding),
+                'binding' : valjsData($elm, dataNameValjsBinding),
                 'event': event,
                 'config': config,
                 'valjs': valjs,
@@ -920,14 +927,14 @@ window.ValJS = (function (window, $) {
             result;
         execParameters.binding.setRuleContext(rule.name);
         result = rule.run(execParameters, $elm);
-        execParameters.binding.setRuleContext(null);
+        execParameters.binding.setRuleContext(nullValue);
 
         return valjsParseRuleResult(result, {
             valjs: valjs,
             config : config,
             rule : rule,
             element : $elm,
-            msgName : null
+            msgName : nullValue
         });
     }
 
@@ -960,11 +967,11 @@ window.ValJS = (function (window, $) {
             config = rules[ruleNames[rule_index]];
             result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
 
-            if (result.ok === false) {
+            if (result.ok === falseValue) {
                 ret.hash.push(currentRule.name + result.result);
-                ret.fail.push(valjsExtend(true, {}, { msg : result.result }, { rule : currentRule.name}));
+                ret.fail.push(valjsExtend(trueValue, {}, { msg : result.result }, { rule : currentRule.name}));
             } else {
-                ret.success.push(valjsExtend(true, {}, result.result, { rule : currentRule.name}));
+                ret.success.push(valjsExtend(trueValue, {}, result.result, { rule : currentRule.name}));
             }
         }
         ret.hash = valjsStringChecksum((submit ? '1' : '0') + ret.hash.join('|'));
@@ -974,11 +981,17 @@ window.ValJS = (function (window, $) {
 
 
     function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit) { // , valjs, event
+        var binding = valjsData($elm, dataNameValjsBinding),
+            rules = valjsGetElementBoundRules($elm),
+            ruleNames = rules ? rules.ruleNames : nullValue,
+            isValid,
+            previousHash = binding.g(dataNameValJsHash),
+            elementValidationResult;
         if (valjs.config.liveValidation === falseValue && !submit) {
             return;
         }
         if (!valjsTestIsElementReadyForValidation($elm)) {
-            if ($elm.data(dataNameValJsHash)) {
+            if (binding.g(dataNameValJsHash)) {
                 valjsResetElementStatus($elm, valjs);
             }
             return;
@@ -992,18 +1005,13 @@ window.ValJS = (function (window, $) {
             elementValue = valjsGetElementValue($elm, event);
         }
 
-        var rules = valjsGetElementBoundRules($elm),
-            ruleNames = rules ? rules.ruleNames : null,
-            isValid,
-            previousHash = $elm.data(dataNameValJsHash),
-            elementValidationResult;
-
         // Get validation results and make sure hash is updatd
         elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
         if (previousHash === elementValidationResult.hash && valjs.config.alwaysTriggerFieldEvents === falseValue) {
-            return $elm.data(dataNameValjsValidationStatus);
+            return binding.g(dataNameValjsValidationStatus);
         }
-        $elm.data(dataNameValJsHash, elementValidationResult.hash);
+
+        binding.s(dataNameValJsHash, elementValidationResult.hash);
 
         isValid = valjsTriggerElementValidationEvent(valjs, $elm, elementValidationResult, submit);
         return isValid;
@@ -1030,9 +1038,22 @@ window.ValJS = (function (window, $) {
      */
     function ValjsElementBinding(valjsInstance, jqElement) {
         var rules =  wj.rules,
-            fieldRules = null,
+            fieldRules = nullValue,
             self = this,
-            ruleContext = null;
+            ruleContext = nullValue,
+            data = {};
+
+        this.s = function (key, val) {
+            data[key] = val;
+        };
+        this.g = function (key) {
+            return data[key];
+        };
+        this.r = function (key) {
+            if (data[key]) {
+                delete data[key];
+            }
+        };
 
         function extractFieldRules(cfgFieldGlobal, cfgInstanceGlobal) {
             var elmConfig,
@@ -1119,10 +1140,8 @@ window.ValJS = (function (window, $) {
 
             fieldRules.uid = valjsGetUniqueId();
 
-            state = jqElement.data(dataNameValJsContext) ? '' : 'unknown';
+            state = valjsData(jqElement, dataNameValjsBinding) ? '' : 'unknown';
             valjsJsAddClass(jqElement, valjsGetClass(valjsInstance, 'field', state))
-                .data(dataNameValJsContext, valjsInstance)          // Make sure the field has contact with the valjs context
-                .data(dataNameValjsConfig, fieldRules) // Attach the rules for this field
                 .data(valjsInstance.vars.off, 0);                   // Validation not disabled
             valjsSetClass(valjsFindLabelElement(jqElement, valjsInstance), valjsInstance, 'label', state);
 
@@ -1147,7 +1166,7 @@ window.ValJS = (function (window, $) {
 
             for (i_index = 0; i_index < valjsLength(ruleNames); i_index += 1) {
                 currentRule = rules[ruleNames[i_index]];
-                if (currentRule.bind === null || valjsIsUndefined(currentRule.bind) || currentRule.bind === $.noop) {
+                if (currentRule.bind === nullValue || valjsIsUndefined(currentRule.bind) || currentRule.bind === $.noop) {
                     bindResult = trueValue;
                 } else {
                     self.setRuleContext(currentRule.name);
@@ -1160,7 +1179,7 @@ window.ValJS = (function (window, $) {
                             config : fieldRules[currentRule.name],
                             rule : currentRule
                         }));
-                    self.setRuleContext(null);
+                    self.setRuleContext(nullValue);
                 }
 
                 if (bindResult !== falseValue) {
@@ -1200,7 +1219,7 @@ window.ValJS = (function (window, $) {
         };
 
         this.getFieldStatus = function () {
-            var status = jqElement.data(dataNameValJsIsValid);
+            var status = self.g(dataNameValJsIsValid);
             if (valjsIsUndefined(status)) {
                 return 0;
             }
@@ -1228,7 +1247,7 @@ window.ValJS = (function (window, $) {
                     return fieldRules[options];
                 }
             }
-            return null;
+            return nullValue;
         };
 
         this.hasRule = function (name) {
@@ -1236,10 +1255,10 @@ window.ValJS = (function (window, $) {
             if (Object.prototype.toString.call(name) === '[object Array]') {
                 for (i = 0; i < name.length; i += 1) {
                     if (fieldRules.hasOwnProperty(name[i])) {
-                        return true;
+                        return trueValue;
                     }
                 }
-                return false;
+                return falseValue;
             }
             if (!name) {
                 $.error(msgBadArgs);
@@ -1261,9 +1280,8 @@ window.ValJS = (function (window, $) {
         };
 
         this.validateField = function () {
-            var valjs = jqElement.data(dataNameValJsContext),
-                value = valjsGetElementValue(jqElement);
-            return valjsInvokeElementValidation(jqElement, valjs, value);
+            var value = valjsGetElementValue(jqElement);
+            return valjsInvokeElementValidation(jqElement, valjsInstance.jqContext, value);
         };
 
         function init() {
@@ -1273,7 +1291,7 @@ window.ValJS = (function (window, $) {
 
             // Bind this object to the element
             // it will be removed later if no rules were bound
-            jqElement.data(dataNameValjsBinding, self);
+            valjsData(jqElement, dataNameValjsBinding, self);
 
             fieldRules = extractFieldRules(cfgFieldGlobal, instanceGlobal);
             fieldRules.iFindMsgFn = cfgGlobalFindFunctions.findMsg;
@@ -1316,7 +1334,7 @@ window.ValJS = (function (window, $) {
         var $elm = options.element,
             valjs = options.valjs,
             create = options.create,
-            $after = null,
+            $after = nullValue,
             $msg = valjs.jqContext.find("[data-msg-for='" + $elm.attr('id') + "']");
 
         if (valjs.config.elements && valjs.config.elements.msg && valjsLength($msg) === 0) {
@@ -1338,7 +1356,7 @@ window.ValJS = (function (window, $) {
     }
 
     function valjsTestElementIsBound($elm) {
-        return $elm.data(dataNameValjsBinding) ? trueValue : falseValue;
+        return valjsData($elm, dataNameValjsBinding) ? trueValue : falseValue;
     }
 
     function valjsTestElementChange(e) {
@@ -1376,7 +1394,7 @@ window.ValJS = (function (window, $) {
 
         if (e.type === 'keydown') {
             if (e.keyCode === 13) {
-                form.data(dataNameValJsFormContext, valjs);
+                valjsData(form, dataNameValJsFormContext, valjs);
                 if (valjsLength(valjs.s) > 0) {
                     e.preventDefault();
                     $(valjs.s).first().trigger('click');
@@ -1439,8 +1457,8 @@ window.ValJS = (function (window, $) {
         }
 
         /*jshint validthis:true */
-        var valjs = $(this).data(dataNameValJsFormContext),
-            result = null,
+        var valjs = valjsData($(this), dataNameValJsFormContext),
+            result = nullValue,
             submitEvent,
             eventContext;
 
@@ -1503,8 +1521,8 @@ window.ValJS = (function (window, $) {
             listElements = selectTypeName,
             cbxElements = 'input[type=checkbox], input[type=radio]';
 
-        if (!valjs.$form.data(dataNameValJsBound)) {
-            valjs.$form.data(dataNameValJsBound, 1);
+        if (!valjsData(valjs.$form, dataNameValJsBound)) {
+            valjsData(valjs.$form, dataNameValJsBound, 1);
             valjs.$form.on(valjsGetEventNames(['submit']), { valjs: valjs }, valjsFormSubmit);
         }
 
@@ -1559,7 +1577,7 @@ window.ValJS = (function (window, $) {
     }
 
     function valjsFindInputByNameOrSelector($target, name) {
-        var elm = null;
+        var elm = nullValue;
         if (valjsIndexOf(name, '#') === 0) {
             return $(name);
         }
@@ -1637,7 +1655,7 @@ window.ValJS = (function (window, $) {
 
             createMsg : trueValue, // Set to false to never create new message elements 
 
-            modifierSeparator : null,
+            modifierSeparator : nullValue,
 
             attrPrefix : '',
 
@@ -1707,7 +1725,7 @@ window.ValJS = (function (window, $) {
         },
 
         validateForm: function () {
-            var valjs = $(this).data(dataNameValJsInstance);
+            var valjs = valjsData($(this), dataNameValJsInstance);
             return valjsValidateForm(valjs, jQuery.Event('validateForm'), false);
         },
 
@@ -1717,11 +1735,11 @@ window.ValJS = (function (window, $) {
         },*/
 
         updateBindings : function () {
-            valjsRefreshElementBindings($(this).data(dataNameValJsInstance));
+            valjsRefreshElementBindings(valjsData($(this), dataNameValJsInstance));
         },
 
         getRuleMessages : function () {
-            valjsRefreshElementBindings($(this).data(dataNameValJsInstance));
+            valjsRefreshElementBindings(valjsData($(this), dataNameValJsInstance));
         },
 
         init: function () {
@@ -1737,7 +1755,7 @@ window.ValJS = (function (window, $) {
                 this.$form = this.jqContext;
             } else {
                 this.$form = this.jqContext.closest('form');
-                if (this.$form.data(dataNameValJsInstance)) {
+                if (valjsData(this.$form, dataNameValJsInstance)) {
                     //                        window.console && window.console.warn(this.jqContext);
                     throw "valjs: form/context conflict";
                 }
@@ -1778,7 +1796,7 @@ window.ValJS = (function (window, $) {
         },
 
         isElementBound : function () {
-            return $(this).data(dataNameValjsBinding) ? true : false;
+            return valjsData($(this), dataNameValjsBinding) ? trueValue : falseValue;
         },
 
         /**
@@ -1790,7 +1808,7 @@ window.ValJS = (function (window, $) {
             if (this.valjsv) {
                 // find was faster than filter...
                 var elements = this.$elm.find(selector);
-                elements.data(this.vars.off, 1);
+                valjsData(elements, this.vars.off, 1);
             }
         }
     };
@@ -1813,7 +1831,7 @@ window.ValJS = (function (window, $) {
         if (ValJS.prototype[o]) {
             return ValJS.prototype[o].apply($(i), args);
         }
-        var binding = $(i).data(dataNameValjsBinding);
+        var binding = valjsData($(i), dataNameValjsBinding);
         if (binding) {
             return binding[o].apply(binding, args);
         }
@@ -1828,7 +1846,7 @@ window.ValJS = (function (window, $) {
             return ValJS.prototype[options]
                 .apply($(this), Array.prototype.slice.call(arguments, 1));
         }
-        if (ValjsElementBinding.prototype[options] && $(this).data(dataNameValjsBinding)) {
+        if (ValjsElementBinding.prototype[options] && valjsData($(this), dataNameValjsBinding)) {
             // Call element-level function
             var args = Array.prototype.slice.call(arguments, 1),
                 ret = this.map(function (i) {
@@ -1841,7 +1859,7 @@ window.ValJS = (function (window, $) {
         }
         if (typeof options === 'object' || !options) {
             return this.each(function () {
-                if ($(this).data(dataNameValJsInstance)) {
+                if (valjsData($(this), dataNameValJsInstance)) {
                     $(this).valjs('updateBindings');
                     return this;
                 }
@@ -1992,7 +2010,7 @@ window.ValJS = (function (window, $) {
             data,
             find,
             matches,
-            ret = null,
+            ret = nullValue,
             re;
 
         data = valjsGetDatePattern(format, macros);
@@ -2325,7 +2343,7 @@ window.ValJS = (function (window, $) {
                 'min' : 'Value too low'
             },
             separator : '.',
-            step : null
+            step : nullValue
         },
 
         testElement: function (valjsArgs) {
@@ -2496,7 +2514,7 @@ window.ValJS = (function (window, $) {
     valjsAddRule('filemax', {
         options : {
             msg : {
-                'error' : null,
+                'error' : nullValue,
                 'one' : 'File too large',
                 'all' : 'Total size too large'
             }
@@ -2564,7 +2582,7 @@ window.ValJS = (function (window, $) {
     valjsAddRule('filemin', {
         options : {
             msg : {
-                'error' : null,
+                'error' : nullValue,
                 'one' : 'File too small',
                 'all' : 'Total size too small'
             }
@@ -2664,7 +2682,7 @@ window.ValJS = (function (window, $) {
                 return false;
             }
         }
-        return true;
+        return trueValue;
 
     }
 
