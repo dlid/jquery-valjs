@@ -1,4 +1,4 @@
-/*! ValJS v0.7.5 (2015-01-05) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.5 (2015-01-06) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -546,6 +546,13 @@ window.ValJS = (function (window, $) {
         return ret;
     }
 
+
+    function valjsGetUniqueId() {
+        ValJS.idCounter += 1;
+        return ValJS.idCounter;
+    }
+
+
     function valjsParseRuleAttrValue(rule, attrName, attrValue) {
         if (!valjsIsUndefined(rule.options)) {
             if (!valjsIsUndefined(rule.options[attrName])) {
@@ -653,124 +660,6 @@ window.ValJS = (function (window, $) {
     }
 
 
-    function ValJSConfigBase() {
-        return;
-    }
-
-    /**
-     * Class responsible for identifying and extracting rules and configuration for a field
-     * @param {[type]} valjs     [description]
-     * @param {[type]} jqElement [description]
-     */
-    function RuleInitialization(valjs, jqElement) {
-        var rules =  wj.rules,
-            fieldRules = null;
-
-        function extractFieldRules(cfgFieldGlobal, cfgInstanceGlobal) {
-            var elmConfig,
-                rule_index = 0,
-                ruleOptions,
-                cfgFieldAttr,
-                cfgInstanceFieldRule,
-                extractedRules = { ruleNames : [], rulesField : jqElement.attr('id')};
-
-            for (rule_index = 0; rule_index < valjsLength(rules.k); rule_index += 1) {
-                elmConfig = {};
-                ruleOptions = !valjsIsUndefined(rules[rules.k[rule_index]].options) ? rules[rules.k[rule_index]].options : {};
-                cfgInstanceFieldRule = valjsGetElementConfig(jqElement, rules.k[rule_index], valjs.config, falseValue);
-                elmConfig = valjsExtend(trueValue, {}, ruleOptions, cfgInstanceGlobal, cfgInstanceFieldRule, cfgFieldGlobal);
-                cfgFieldAttr = valjsGetElementConfigFromAttributes(valjs, jqElement, rules[rules.k[rule_index]], elmConfig);
-                elmConfig = valjsExtend(trueValue,  elmConfig, cfgFieldAttr);
-                elmConfig.msg = elmConfig.msg || {};
-
-                if (!valjsIsUndefined(elmConfig.elmRules)) {
-                    delete elmConfig.elmRules;
-                    extractedRules.ruleNames.push(rules.k[rule_index]);
-                    extractedRules[rules.k[rule_index]] = elmConfig;
-                }
-            }
-            return extractedRules;
-        }
-
-        function getInstanceGlobalMessage() {
-            return valjsIsUndefined(valjs.config.msg) ? {} : { msg : valjsGetMsgConfig(valjs.config.msg) };
-        }
-
-        function getFieldGlobalMessage() {
-            var msgAttribute = valjsGetAttr(jqElement, "data-" + valjs.config.attrPrefix + 'msg');
-            if (msgAttribute) {
-                return {
-                    msg : valjsGetMsgConfig(msgAttribute)
-                };
-            }
-            return {};
-        }
-
-        function getInstanceFindFunctions() {
-            return valjsExtend({
-                findMsg : valjs.config.findMsg,
-                findLabel : valjs.config.findLabel
-            }, valjsGetElementFindFunctions(jqElement, valjs.config));
-        }
-
-        function triggerSetupFieldCallback() {
-            var e = {
-                valjs: valjs,
-                elm : jqElement,
-                config: fieldRules
-            };
-
-            if (valjs.config.setupField !== $.noop) {
-                valjs.config.setupField(e);
-            }
-            fieldRules = e.config;
-        }
-
-        function sortFieldRules() {
-            // Sort field rules by rule priority
-            fieldRules.ruleNames.sort(function (a, b) {
-                a = rules[a].prio;
-                b = rules[b].prio;
-                return a < b ? -1 : (a > b ? 1 : 0);
-            });
-        }
-
-        this.getRules = function () {
-            return fieldRules;
-        };
-
-        this.init = function () {
-            var instanceGlobal = getInstanceGlobalMessage(),
-                cfgGlobalFindFunctions = getInstanceFindFunctions(),
-                cfgFieldGlobal = getFieldGlobalMessage();
-
-            fieldRules = extractFieldRules(cfgFieldGlobal, instanceGlobal);
-            fieldRules.iFindMsgFn = cfgGlobalFindFunctions.findMsg;
-            fieldRules.iFindLabelFn = cfgGlobalFindFunctions.findLabel;
-
-
-            sortFieldRules();
-            triggerSetupFieldCallback();
-
-        };
-
-    }
-
-    RuleInitialization.prototype = new ValJSConfigBase();
-
-    /**
-     * [valjsInitializeElementRules description]
-     * @param  {*} valjs [description]
-     * @param  {*} $elm  [description]
-     * @return {*}       [description]
-     */
-    function valjsInitializeElementRules(valjs, $elm) {
-        var ruleInit = new RuleInitialization(valjs, $elm);
-
-        ruleInit.init();
-
-        return ruleInit.getRules();
-    }
 
     function valjsGetFilteredJ5Object(valjs) {
         return {
@@ -780,11 +669,6 @@ window.ValJS = (function (window, $) {
         };
     }
 
-
-    function valjsGetUniqueId() {
-        ValJS.idCounter += 1;
-        return ValJS.idCounter;
-    }
 
 
     function valjsFindLabelElement($elm, valjs) {
@@ -820,76 +704,194 @@ window.ValJS = (function (window, $) {
     }
 
     /**
-     * [valjsBindElementRules description]
-     * @param  {*} valjs [description]
-     * @param  {*} elm   [description]
-     * @return {boolean}       [description]
+     * Class responsible for identifying and extracting rules and configuration for a field
+     * @param {[type]} valjs     [description]
+     * @param {[type]} jqElement [description]
      */
-    function valjsBindElementRules(valjs, elm) {
-        var $elm = $(elm),
-            identifiedRules = valjsInitializeElementRules(valjs, $elm),
-            allRules = wj.rules,
-            currentRule,
-            bindResult,
-            i_index,
-            ruleNames = identifiedRules.ruleNames;
+    function ValjsElementBinding(valjsInstance, jqElement) {
+        var rules =  wj.rules,
+            fieldRules = null;
 
-        // Clear the rule names. We set them back when they're bound
-        identifiedRules.ruleNames = [];
+        function extractFieldRules(cfgFieldGlobal, cfgInstanceGlobal) {
+            var elmConfig,
+                rule_index = 0,
+                ruleOptions,
+                cfgFieldAttr,
+                cfgInstanceFieldRule,
+                extractedRules = { ruleNames : []};
 
-        if (valjsLength(ruleNames) === 0) {
-            return;
-        }
+            for (rule_index = 0; rule_index < valjsLength(rules.k); rule_index += 1) {
+                elmConfig = {};
+                ruleOptions = !valjsIsUndefined(rules[rules.k[rule_index]].options) ? rules[rules.k[rule_index]].options : {};
+                cfgInstanceFieldRule = valjsGetElementConfig(jqElement, rules.k[rule_index], valjsInstance.config, falseValue);
+                elmConfig = valjsExtend(trueValue, {}, ruleOptions, cfgInstanceGlobal, cfgInstanceFieldRule, cfgFieldGlobal);
+                cfgFieldAttr = valjsGetElementConfigFromAttributes(valjsInstance, jqElement, rules[rules.k[rule_index]], elmConfig);
+                elmConfig = valjsExtend(trueValue,  elmConfig, cfgFieldAttr);
+                elmConfig.msg = elmConfig.msg || {};
 
-        $elm.data(dataNameValjsConfig, identifiedRules);
-
-        for (i_index = 0; i_index < valjsLength(ruleNames); i_index += 1) {
-            currentRule = allRules[ruleNames[i_index]];
-            if (currentRule.bind === null || valjsIsUndefined(currentRule.bind) || currentRule.bind === $.noop) {
-                bindResult = trueValue;
-            } else {
-                bindResult = currentRule.bind(valjsExtend(valjsGetFilteredJ5Object(valjs),
-                    {
-                        valjs : valjs,
-                        element: $elm,
-                        field : valjsGetElementType($elm),
-                        config : identifiedRules[currentRule.name],
-                        rule : currentRule
-                    }));
-            }
-
-            if (bindResult !== falseValue) {
-                if (typeof bindResult === "object") {
-                    identifiedRules[currentRule.name] = valjsExtend(trueValue, {}, identifiedRules[currentRule.name], bindResult);
+                if (!valjsIsUndefined(elmConfig.elmRules)) {
+                    delete elmConfig.elmRules;
+                    extractedRules.ruleNames.push(rules.k[rule_index]);
+                    extractedRules[rules.k[rule_index]] = elmConfig;
                 }
-                identifiedRules.ruleNames.push(ruleNames[i_index]);
-            } else {
-                delete identifiedRules[ruleNames[i_index]];
             }
+
+            return extractedRules;
         }
 
-        delete identifiedRules.rulesField;
-
-        identifiedRules.fieldType = valjsGetElementType($elm);
-
-        if (identifiedRules.ruleNames.length > 0) {
-            // This is where the element rules are all initialized
-            // and we can setup the field
-
-            identifiedRules.uid = valjsGetUniqueId();
-
-            i_index = $elm.data(dataNameValJsContext) ? '' : 'unknown';
-            valjsJsAddClass($elm, valjsGetClass(valjs, 'field', i_index))
-                .data(dataNameValJsContext, valjs)          // Make sure the field has contact with the valjs context
-                .data(dataNameValjsConfig, identifiedRules) // Attach the rules for this field
-                .data(valjs.vars.off, 0);                   // Validation not disabled
-
-            valjsSetClass(valjsFindLabelElement($elm, valjs), valjs, 'label', i_index);
-            return trueValue;
+        function getInstanceGlobalMessage() {
+            return valjsIsUndefined(valjsInstance.config.msg) ? {} : { msg : valjsGetMsgConfig(valjsInstance.config.msg) };
         }
-        valjsCleanupElement($elm, valjs);
 
-        return falseValue;
+        function getFieldGlobalMessage() {
+            var msgAttribute = valjsGetAttr(jqElement, "data-" + valjsInstance.config.attrPrefix + 'msg');
+            if (msgAttribute) {
+                return {
+                    msg : valjsGetMsgConfig(msgAttribute)
+                };
+            }
+            return {};
+        }
+
+        function getInstanceFindFunctions() {
+            return valjsExtend({
+                findMsg : valjsInstance.config.findMsg,
+                findLabel : valjsInstance.config.findLabel
+            }, valjsGetElementFindFunctions(jqElement, valjsInstance.config));
+        }
+
+        function triggerSetupFieldCallback() {
+            var e = {
+                valjs: valjsInstance,
+                elm : jqElement,
+                config: fieldRules
+            };
+
+            if (valjsInstance.config.setupField !== $.noop) {
+                valjsInstance.config.setupField(e);
+            }
+            fieldRules = e.config;
+        }
+
+        function sortFieldRules() {
+            // Sort field rules by rule priority
+            fieldRules.ruleNames.sort(function (a, b) {
+                a = rules[a].prio;
+                b = rules[b].prio;
+                return a < b ? -1 : (a > b ? 1 : 0);
+            });
+        }
+
+
+        function finalizeElementBinding() {
+
+            if (fieldRules.ruleNames.length === 0) {
+                valjsCleanupElement(jqElement, valjsInstance);
+                valjsRemoveData(jqElement, dataNameValjsConfig);
+                return;
+            }
+
+            var state;
+
+            fieldRules.fieldType = valjsGetElementType(jqElement);
+
+            if (fieldRules.ruleNames.length > 0) {
+                fieldRules.uid = valjsGetUniqueId();
+
+                state = jqElement.data(dataNameValJsContext) ? '' : 'unknown';
+                valjsJsAddClass(jqElement, valjsGetClass(valjsInstance, 'field', state))
+                    .data(dataNameValJsContext, valjsInstance)          // Make sure the field has contact with the valjs context
+                    .data(dataNameValjsConfig, fieldRules) // Attach the rules for this field
+                    .data(valjsInstance.vars.off, 0);                   // Validation not disabled
+                valjsSetClass(valjsFindLabelElement(jqElement, valjsInstance), valjsInstance, 'label', state);
+            }
+
+        }
+
+        this.bindInitializedRules = function () {
+            var ruleNames = fieldRules.ruleNames.slice(0),
+                i_index,
+                currentRule,
+                bindResult;
+
+            fieldRules.ruleNames = [];
+            if (valjsLength(ruleNames) === 0) {
+                return;
+            }
+
+
+            for (i_index = 0; i_index < valjsLength(ruleNames); i_index += 1) {
+                currentRule = rules[ruleNames[i_index]];
+                if (currentRule.bind === null || valjsIsUndefined(currentRule.bind) || currentRule.bind === $.noop) {
+                    bindResult = trueValue;
+                } else {
+
+                    bindResult = currentRule.bind(valjsExtend(valjsGetFilteredJ5Object(valjsInstance),
+                        {
+                            valjs : valjsInstance,
+                            element: jqElement,
+                            field : valjsGetElementType(jqElement),
+                            config : fieldRules[currentRule.name],
+                            rule : currentRule
+                        }));
+                }
+
+                if (bindResult !== falseValue) {
+                    if (typeof bindResult === "object") {
+                        fieldRules[currentRule.name] = valjsExtend(trueValue, {}, fieldRules[currentRule.name], bindResult);
+                    }
+                    fieldRules.ruleNames.push(ruleNames[i_index]);
+                } else {
+                    delete fieldRules[ruleNames[i_index]];
+                }
+            }
+
+            finalizeElementBinding();
+
+            return this;
+        };
+
+
+        this.getRules = function () {
+            return fieldRules;
+        };
+
+        this.initializeRules = function () {
+            var instanceGlobal = getInstanceGlobalMessage(),
+                cfgGlobalFindFunctions = getInstanceFindFunctions(),
+                cfgFieldGlobal = getFieldGlobalMessage();
+
+            fieldRules = extractFieldRules(cfgFieldGlobal, instanceGlobal);
+            fieldRules.iFindMsgFn = cfgGlobalFindFunctions.findMsg;
+            fieldRules.iFindLabelFn = cfgGlobalFindFunctions.findLabel;
+
+            // Let's try to refactor this one away later...
+            jqElement.data(dataNameValjsConfig, fieldRules);
+
+            sortFieldRules();
+
+            triggerSetupFieldCallback();
+            return this;
+        };
+
+        this.isBound = function () {
+            return fieldRules.ruleNames.length > 0;
+        };
+
+    }
+
+    function startRuleBindingCycle(valjs, element) {
+
+        return (new ValjsElementBinding(valjs, $(element)))
+
+            // Rule initialization phase
+            .initializeRules()
+
+            // Rule bind phase
+            .bindInitializedRules()
+
+            // Exit with the status
+            .isBound();
     }
 
     function valjsGetElementBoundRules($elm) {
@@ -1389,6 +1391,8 @@ window.ValJS = (function (window, $) {
             //.off(eventNamespace)
             .on(valjsGetEventNames([clickEvent]), { valjsSubmit: trueValue, valjs: valjs }, valjsSetFormContext);
 
+
+
     }
 
     function valjsIndexOf(haystack, needle) {
@@ -1450,7 +1454,7 @@ window.ValJS = (function (window, $) {
         //
         elms = valjsSelectElements(cssSelectors.elements, valjs.context);
         for (element_index = 0; element_index < valjsLength(elms); element_index += 1) {
-            if (valjsBindElementRules(valjs, elms[element_index])) {
+            if (startRuleBindingCycle(valjs, elms[element_index])) {
                 valjs.e.push(elms[element_index]);
             }
         }
@@ -1713,8 +1717,6 @@ window.ValJS = (function (window, $) {
         $(obj).addClass('valjs__field--off')
         return this;
     }*/
-
-
 
     ValJS.idCounter = 0;
     ValJS.ruleDefaults = ValJS.prototype.ruleDefaults;
@@ -2703,7 +2705,7 @@ window.ValJS = (function (window, $) {
             return trueValue;
         }
     });
-
+    
     valjsAddRule('security', {
         options : {
             value : 'luns',
@@ -2750,23 +2752,5 @@ window.ValJS = (function (window, $) {
             return count >= match ? trueValue : falseValue;
         }
     });
-    return ValJS;
+    return this;
 }(window, jQuery));
-
-/*
-    var ret = {
-        rules : {}
-    };
-for( var i = 0; i < ValJS.rules.k.length; i++ ) {
-    var o = ValJS.rules[ValJS.rules.k[i]].options;
-    if (o && o.msg) {
-        ret.rules[ValJS.rules.k[i]] = {
-            msg : o.msg
-        }
-    }
-
-
-//    console.warn(ValJS.rules.k[i], ValJS.rules[ValJS.rules.k[i]]);
-}
-console.warn(JSON.stringify(ret));
-*/
