@@ -1,4 +1,4 @@
-/*! ValJS v0.7.5 (2015-01-06) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.7.6 (2015-01-06) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -10,10 +10,12 @@
  */
 window.ValJS = (function (window, $) {
     'use strict';
+
+
     /** @global $ */
     var dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '0.7.5';
+            this.valjsv = '0.7.6';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -37,12 +39,14 @@ window.ValJS = (function (window, $) {
         submitQuery = 'input[type="submit"],button[type="submit"],button:not([type]),input[type="image"]',
         selectTypeName = 'select',
         msgValJSNotFound = "ValJS not found",
+        msgBadArgs = "Bad args",
         dataNameValJsValueCache = 'vjs-vc',
         dataNameValJsHash = 'vjs-h',
         dataNameValJsContext = 'vjs-ct',
         dataNameValJsIsValid = 'vjs-v',
         dataNameValJsFormContext = 'vjs-fct',
         dataNameValJsBound = 'vjs-b',
+        dataNameValjsBinding = 'vjs-bn',
         dataNameValjsConfig = 'vjs-cfg',
         dataNameValjsElementMsg = 'vjs-msge',
 
@@ -275,7 +279,7 @@ window.ValJS = (function (window, $) {
         if (!$elm) {
             return null;
         }
-        cfg = $elm.data(dataNameValjsConfig);
+        cfg = $elm.data(dataNameValjsBinding).getCfg();
         return cfg.iFindMsgFn(options);
     }
 
@@ -568,7 +572,7 @@ window.ValJS = (function (window, $) {
         return attrValue;
     }
 
-    function valjsRuleParseElementAttributeAsMessage(attrName, attribute_name, local_string, attrValue, attrData) {
+    function valjsRuleParseElementAttributeAsMessage(attribute_name, local_string, attrValue, attrData) {
         if (attribute_name.indexOf(local_string) === 0) {
             if (attribute_name === local_string) {
                 attrData.msg = attrData.msg || {};
@@ -578,7 +582,7 @@ window.ValJS = (function (window, $) {
                 attrData.msg[valjsAttributeNameToOptionName(attribute_name.substr((local_string + '-').length))] = attrValue;
             }
         } else {
-            attrData[valjsAttributeNameToOptionName(attribute_name.substr(valjsLength(attrName) + 1))] = attrValue;
+            return attrValue;
         }
         return attrData;
     }
@@ -598,8 +602,12 @@ window.ValJS = (function (window, $) {
                 if (!attrs[attr_index].value) {
                     attrData[tmp] = valjsParseEmptyRuleAttr(rule, tmp);
                 } else {
-                    attrValue = valjsParseRuleAttrValue(rule, attrName, attrs[attr_index].value);
-                    attrData = valjsRuleParseElementAttributeAsMessage(attrName, attribute_name, attrName + '-msg', attrValue, attrData);
+                    attrValue = valjsParseRuleAttrValue(rule, tmp, attrs[attr_index].value);
+                    attrData = valjsRuleParseElementAttributeAsMessage(attribute_name, attrName + '-msg', attrValue, attrData);
+                    if (attrData === attrValue) {
+                        attrData = {};
+                        attrData[tmp] = attrValue;
+                    }
                 }
             }
         }
@@ -693,15 +701,21 @@ window.ValJS = (function (window, $) {
             valjsRemoveClass($label, valjsGetClass(valjs, 'label'));
             valjsRemoveClass($label, valjs.vars.label);
         }
-        valjsRemoveClass($elm, dElmType);
-        valjsRemoveClass($elm, dataNameValJsInstance);
-        valjsRemoveClass($elm, dataNameValjsConfig);
-        valjsRemoveClass($elm, dataNameValJsContext);
-        valjsRemoveClass($elm, dataNameValJsHash);
-        valjsRemoveClass($elm, dataNameValJsIsValid);
-        valjsRemoveClass($elm, dataNameValjsValidationStatus);
-        valjsRemoveClass($elm, dataNameValJsValueCache);
+        valjsRemoveData($elm, dElmType);
+        valjsRemoveData($elm, dataNameValJsInstance);
+        valjsRemoveData($elm, dataNameValjsConfig);
+        valjsRemoveData($elm, dataNameValJsContext);
+        valjsRemoveData($elm, dataNameValJsHash);
+        valjsRemoveData($elm, dataNameValJsIsValid);
+        valjsRemoveData($elm, dataNameValjsValidationStatus);
+        valjsRemoveData($elm, dataNameValJsValueCache);
     }
+
+
+    function ValJSBindingBase() { return; }
+    ValJSBindingBase.prototype.hasRule = $.noop;
+    ValJSBindingBase.prototype.getFieldType = $.noop;
+    ValJSBindingBase.prototype.getRules = $.noop;
 
     /**
      * Class responsible for identifying and extracting rules and configuration for a field
@@ -710,7 +724,8 @@ window.ValJS = (function (window, $) {
      */
     function ValjsElementBinding(valjsInstance, jqElement) {
         var rules =  wj.rules,
-            fieldRules = null;
+            fieldRules = null,
+            self = this;
 
         function extractFieldRules(cfgFieldGlobal, cfgInstanceGlobal) {
             var elmConfig,
@@ -735,9 +750,12 @@ window.ValJS = (function (window, $) {
                     extractedRules[rules.k[rule_index]] = elmConfig;
                 }
             }
-
             return extractedRules;
         }
+
+        /*function getValjs() {
+            return valjsInstance;
+        }*/
 
         function getInstanceGlobalMessage() {
             return valjsIsUndefined(valjsInstance.config.msg) ? {} : { msg : valjsGetMsgConfig(valjsInstance.config.msg) };
@@ -788,6 +806,7 @@ window.ValJS = (function (window, $) {
             if (fieldRules.ruleNames.length === 0) {
                 valjsCleanupElement(jqElement, valjsInstance);
                 valjsRemoveData(jqElement, dataNameValjsConfig);
+                valjsRemoveData(jqElement, dataNameValjsBinding);
                 return;
             }
 
@@ -808,7 +827,7 @@ window.ValJS = (function (window, $) {
 
         }
 
-        this.bindInitializedRules = function () {
+        function bind() {
             var ruleNames = fieldRules.ruleNames.slice(0),
                 i_index,
                 currentRule,
@@ -849,53 +868,82 @@ window.ValJS = (function (window, $) {
             finalizeElementBinding();
 
             return this;
-        };
+        }
 
+        /**
+         * Here follows the public methods that can be 
+         * called for e
+         */
 
-        this.getRules = function () {
+        this.getCfg = function () {
             return fieldRules;
         };
 
-        this.initializeRules = function () {
+        this.getRules = function () {
+            return fieldRules.ruleNames;
+        };
+
+        this.hasRule = function (name) {
+            var i = 0;
+            if (Object.prototype.toString.call(name) === '[object Array]') {
+                for (i = 0; i < name.length; i += 1) {
+                    if (fieldRules.hasOwnProperty(name[i])) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (!name) {
+                $.error(msgBadArgs);
+            }
+            return fieldRules.hasOwnProperty(name);
+        };
+
+        this.getFieldType = function () {
+            return valjsGetElementType(jqElement);
+        };
+
+        function init() {
             var instanceGlobal = getInstanceGlobalMessage(),
                 cfgGlobalFindFunctions = getInstanceFindFunctions(),
                 cfgFieldGlobal = getFieldGlobalMessage();
+
+            // Bind this object to the element
+            // it will be removed later if no rules were bound
+            jqElement.data(dataNameValjsBinding, self);
 
             fieldRules = extractFieldRules(cfgFieldGlobal, instanceGlobal);
             fieldRules.iFindMsgFn = cfgGlobalFindFunctions.findMsg;
             fieldRules.iFindLabelFn = cfgGlobalFindFunctions.findLabel;
 
-            // Let's try to refactor this one away later...
-            jqElement.data(dataNameValjsConfig, fieldRules);
-
             sortFieldRules();
 
             triggerSetupFieldCallback();
             return this;
-        };
+        }
 
         this.isBound = function () {
             return fieldRules.ruleNames.length > 0;
         };
 
+        init();
+        bind();
+
     }
+
+    ValjsElementBinding.prototype = new ValJSBindingBase();
 
     function startRuleBindingCycle(valjs, element) {
 
+        // New from 0.7.5
         return (new ValjsElementBinding(valjs, $(element)))
-
-            // Rule initialization phase
-            .initializeRules()
-
-            // Rule bind phase
-            .bindInitializedRules()
 
             // Exit with the status
             .isBound();
     }
 
     function valjsGetElementBoundRules($elm) {
-        var rules = $elm.data(dataNameValjsConfig);
+        var rules = $elm.data(dataNameValjsBinding).getCfg();
         return rules;
     }
 
@@ -964,7 +1012,7 @@ window.ValJS = (function (window, $) {
         /** @type { {hide : function()} | * } */
         var $msg,
             status = refresh.status,
-            elmConfig = $elm.data(dataNameValjsConfig),
+            elmConfig = $elm.data(dataNameValjsBinding).getCfg(),
             state = refresh.state,
             message = refresh.message,
             modifers = null,
@@ -1210,7 +1258,7 @@ window.ValJS = (function (window, $) {
     }
 
     function valjsTestElementIsBound($elm) {
-        return $elm.data(dataNameValjsConfig) ? trueValue : falseValue;
+        return $elm.data(dataNameValjsBinding) ? trueValue : falseValue;
     }
 
     function valjsTestElementChange(e) {
@@ -1606,9 +1654,9 @@ window.ValJS = (function (window, $) {
             return status;
         },
 
-        getFieldType : function () {
+/*        getFieldType : function () {
             return valjsGetElementType($(this));
-        },
+        },*/
 
         updateBindings : function () {
             valjsRefreshElementBindings($(this).data(dataNameValJsInstance));
@@ -1672,31 +1720,6 @@ window.ValJS = (function (window, $) {
         },
 
         /**
-         * Check if the element has the specified rule
-         * @param  {string} ruleName The name of the rule
-         * @return {boolean}          True if the rule exists for this field
-         */
-        hasRule: function (ruleName) {
-
-            if (valjsIsString(ruleName)) {
-                ruleName = [ruleName];
-            }
-
-            var cfg = $(this).data(dataNameValjsConfig),
-                i;
-            if (cfg) {
-                for (i = 0; i < ruleName.length; i += 1) {
-                    if (cfg.hasOwnProperty(ruleName[i])) {
-                        return trueValue;
-                    }
-                }
-            } else {
-                $.error(msgValJSNotFound, $(this));
-            }
-            return falseValue;
-        },
-
-        /**
          * To disable validation for elements matching the selector
          * @param  {[type]} selector
          * @return {[type]}
@@ -1724,9 +1747,15 @@ window.ValJS = (function (window, $) {
     ValJS.addRule = valjsAddRule;
     ValJS.rules = { k: [] };
 
-
     function valjsCallByChildElement(o, i, args) {
-        return ValJS.prototype[o].apply($(i), args);
+        if (ValJS.prototype[o]) {
+            return ValJS.prototype[o].apply($(i), args);
+        }
+        var binding = $(i).data(dataNameValjsBinding);
+        if (binding) {
+            return binding[o].apply(binding, args);
+        }
+        return {};
     }
 
     /**
@@ -1736,10 +1765,12 @@ window.ValJS = (function (window, $) {
         if (ValJS.prototype[options]) {
             // only call methods on created objects
             if ($(this).data(dataNameValJsInstance)) {
-
                 return ValJS.prototype[options]
                     .apply($(this), Array.prototype.slice.call(arguments, 1));
             }
+            $.error(msgValJSNotFound);
+        } else if (ValjsElementBinding.prototype[options] && $(this).data(dataNameValjsBinding)) {
+            // Call element-level function
             var args = Array.prototype.slice.call(arguments, 1),
                 ret = this.map(function (i) {
                     return valjsCallByChildElement(options, this, args, i);
@@ -1977,6 +2008,7 @@ window.ValJS = (function (window, $) {
     function valjsGetMinMaxIfMultiselect(element, getAttr) {
         var elm = element.valjs('getFieldType'),
             val = valjsGetAttr(element, getAttr);
+
         if (elm.type === 'select' && elm.isMultiple === trueValue) {
             return !valjsIsUndefined(val) ? { value : val } : falseValue;
         }
@@ -2705,7 +2737,7 @@ window.ValJS = (function (window, $) {
             return trueValue;
         }
     });
-    
+
     valjsAddRule('security', {
         options : {
             value : 'luns',
@@ -2752,5 +2784,5 @@ window.ValJS = (function (window, $) {
             return count >= match ? trueValue : falseValue;
         }
     });
-    return this;
+    return ValJS;
 }(window, jQuery));
