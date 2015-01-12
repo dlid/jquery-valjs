@@ -1,4 +1,4 @@
-/*! ValJS v0.8 (2015-01-10) | (c) 2014 | www.valjs.io */
+/*! ValJS v0.8.5 (2015-01-12) | (c) 2014 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -63,6 +63,10 @@ window.ValJS = (function (window, $) {
 
     }
 
+    function valjsWaitForIt(fn) {
+        this.vars.wfi = fn;
+    }
+
     /** @global $ */
     var nullValue = null,
         dataNameValJsInstance = 'vjs-i',
@@ -75,6 +79,8 @@ window.ValJS = (function (window, $) {
             this.metadata = this.jqContext.data('valjs');
             this.$form = nullValue;
             this.workers = new ValjSWorker();
+            this.elementUpdated = valjsElementUpdated;
+            this.waitForIt = valjsWaitForIt;
 
             this.vars = {
                 off: 'valjs__off', // data()-variable set on fields with validation disabled
@@ -120,8 +126,56 @@ window.ValJS = (function (window, $) {
         clickEvent = 'click',
         changeEvent = 'change',
         keyupEvent = 'keyup',
-        keydownEvent = 'keydown',
-        blurEvent = 'blur';
+        keydownEvent = 'keydown';
+
+
+
+    function valjsElementUpdated(binding) {
+        var i,
+            validFields = 0,
+            busyFields = 0,
+            failedFields = 0,
+            waitingFields = 0,
+            s;
+
+        for (i = 0; i < this.e.length; i += 1) {
+            binding = $(this.e[i]).data(dataNameValjsBinding);
+            s = binding.getResults();
+            if (!valjsIsUndefined(s)) {
+                if (s.fail.length === 0 && s.busy.length  === 0) {
+                    if (!binding.waitingRules()) {
+                        validFields += 1;
+                    } else {
+                        waitingFields += 1;
+                    }
+                } else if (s.fail.length > 0) {
+                    failedFields += 1;
+                } else if (s.busy.length > 0) {
+                    busyFields += 1;
+                }
+            }
+        }
+
+        /*if (waitingFields) {
+            console.warn("FORM: rules waiting");
+        } else if (failedFields) {
+            console.warn("FORM: failed");
+        } else if (busyFields) {
+            console.warn("FORM: busy...");
+        } else {
+            console.warn("FORM: valid!");
+        }*/
+
+        if (this.vars.wfi) {
+            if (!failedFields && !waitingFields && !busyFields) {
+                this.vars.wfi();
+                delete this.vars.wfi;
+            } else if (failedFields) {
+                delete this.vars.wfi;
+            }
+        }
+    }
+
 
     function valjsData(jqElement) {
         var args = Array.prototype.slice.call(arguments, 1);
@@ -257,7 +311,8 @@ window.ValJS = (function (window, $) {
 
 
     function ValJSRule(name, ruleConfig) {
-        var options = ruleConfig.options;
+        var options = ruleConfig.options,
+            jqDeferred;
 
         if (!valjsIsUndefined(options)) {
             if (!valjsIsUndefined(options.msg)) {
@@ -276,17 +331,22 @@ window.ValJS = (function (window, $) {
         this.async = ruleConfig.async;
         this.prio = ruleConfig.prio;
         this.events = ruleConfig.events;
+        this.checkEvent = ruleConfig.checkEvent;
 
         // If this rule is async we need a deferred object
         if (ruleConfig.async) {
-            this.deferred = $.Deferred();
-            this.reject = this.deferred.reject;
-            this.resolve = this.deferred.resolve;
+            this.makePromise = function() {
+                jqDeferred = $.Deferred();
+                return jqDeferred.promise();
+            };
+            this.reject = function() {
+                jqDeferred.reject.apply(jqDeferred, Array.prototype.slice.call(arguments));
+            }
+            this.resolve = function() {
+                jqDeferred.resolve.apply(jqDeferred, Array.prototype.slice.call(arguments));
+            }
             this.abort = ruleConfig.abort;
         }
-
-
-      //  console.warn(name, this);
 
 
     }
@@ -802,7 +862,7 @@ window.ValJS = (function (window, $) {
             message = refresh.message,
             modifers = nullValue,
             hasMsg = message !== "",
-            createMsg = hasMsg && status === 'invalid',
+            createMsg = hasMsg && status !== 'valid',
             $lbl,
             hideMsg = falseValue;
 
@@ -818,7 +878,7 @@ window.ValJS = (function (window, $) {
             } else {
                 modifers = [status, state];
                 if (status === "busy") {
-                    hideMsg = trueValue;
+                    hideMsg = falseValue;
                 }
             }
         }
@@ -907,6 +967,7 @@ window.ValJS = (function (window, $) {
     function valjsGetValidationMessage(execParameters, config, originalValue) {
         var message = originalValue,
             namedMessage = execParameters.msgName;
+        //console.warn("config", config);
         if (valjsIsFunction(config.msg)) {
             message = config.msg(execParameters);
         } else if (!valjsIsUndefined(config.msg) && !valjsIsUndefined(config.msg[namedMessage])) {
@@ -915,6 +976,8 @@ window.ValJS = (function (window, $) {
             } else if (valjsIsString(namedMessage)) {
                 message = config.msg[namedMessage];
             }
+        } else {
+            message = execParameters.msgName;
         }
         return message;
     }
@@ -922,15 +985,18 @@ window.ValJS = (function (window, $) {
     function valjsParseRuleResult(result, execParameters) {
         var resultObject,
             returnValue = { ok : trueValue, result : nullValue },
-            rule = execParameters.rule;
+            rule = execParameters.rule,
+            message = "";
 
         if (result !== trueValue && (typeof result !== "object" || result.msg)) {
             execParameters.msgName = valjsGetNamedMessageFromRuleResult(result);
-
+            resultObject = result;
             if (typeof result === "object") {
+               // console.warn("message name", execParameters.msgName);
                 resultObject = $.extend(trueValue, {}, result);
-                delete resultObject.msg;
+                //delete resultObject.msg;
                 execParameters.result = resultObject;
+                //console.warn(resultObject);
             }
 
             // it should be used if it's been specified otherwhere
@@ -939,9 +1005,25 @@ window.ValJS = (function (window, $) {
                     execParameters.msgName = keyNameDefault;
                 }
             }
-            result = valjsGetValidationMessage(execParameters, execParameters.config, result);
+            //console.warn(rule.name, execParameters.msgName);
+            message = valjsGetValidationMessage(execParameters, execParameters.config, result);
+            if (result !== false) {
+                if (typeof result === "object") {
+                    result = $.extend(true, {}, result, {msg : message});
+                } else {
+                    result = {
+                        msg : message
+                    };
+                }
+            } else {
+                result = {
+                    msg : message
+                };
+            }
+
             returnValue.ok = falseValue;
             returnValue.result = result;
+            //console.warn("result", returnValue.result.msg)
 
         } else {
             returnValue.result = result;
@@ -975,6 +1057,7 @@ window.ValJS = (function (window, $) {
         // Anything busy?
         if (!isUndefined && isValid === 1 && valjsLength(elementValidationResult.busy) > 0) {
             refreshData.status = "busy";
+            refreshData.message = elementValidationResult.busy[0].msg;
             isValid = 0;
         }
 
@@ -983,7 +1066,13 @@ window.ValJS = (function (window, $) {
         binding.s(dataNameValjsValidationStatus, refreshData);
 
         e = valjsInvokeEvent($elm, 'refreshfield', {
-            valjs: $.extend(refreshData, { binding : binding, context : valjs.jqContext, form : valjs.$form, element : $elm})
+            currentTarget : $elm.get(0),
+            valjs: $.extend(refreshData, {
+                binding : binding,
+                context : valjs.jqContext,
+                form : valjs.$form,
+                element : $elm
+            })
         });
 
         if (!e.isDefaultPrevented()) {
@@ -1010,7 +1099,7 @@ window.ValJS = (function (window, $) {
         result = rule.run(execParameters, $elm);
         execParameters.binding.setRuleContext(nullValue);
 
-        if (rule.deferred) {
+        if (rule.async) {
             // This must be a $.Deferred object
             return result;
         }
@@ -1054,21 +1143,22 @@ window.ValJS = (function (window, $) {
             asyncId,
             result,
             ruleStatus,
-            isAsync;
+            isAsync,
+            shouldRun = false;
 
         for (rule_index = 0; rule_index < valjsLength(ruleNames); rule_index += 1) {
             currentRule = wj.rules[ruleNames[rule_index]];
             config = rules[ruleNames[rule_index]];
-            isAsync = currentRule.deferred;
+            isAsync = currentRule.async;
             ruleStatus = binding.getRuleStatus(currentRule.name);
-
+            result = null;
             if (ruleStatus.status === true) {
                 result = ruleStatus.result;
                 if (result.ok === falseValue) {
                     ret.hash.push(currentRule.name + result.result);
-                    ret.fail.push($.extend(trueValue, {}, { msg : result.result }, { rule : currentRule.name}));
+                    ret.fail.push($.extend(trueValue, {},  result , { rule : currentRule.name}));
                 } else {
-                    ret.success.push($.extend(trueValue, {}, result.result, { rule : currentRule.name}));
+                    ret.success.push($.extend(trueValue, {}, result, { rule : currentRule.name}));
                 }
             } else {
                 busy = binding.g(ruleNames[rule_index] + '_busy');
@@ -1098,71 +1188,94 @@ window.ValJS = (function (window, $) {
                         valjs.workers.remove(result.asyncId);
                         binding.r(ruleNames[rule_index] + '_asyncfail');
                         if (config.allowFailed === true) {
-                            result.unresolved = true;
+                            binding.setRuleStatus(currentRule.name, true, true);
+                            result = { ok : true, result : true};
                         }
                     } else {
-                        result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
-                        ret.hash.push(currentRule.name + "_hash");
-                        if (isAsync) {
-                            asyncId = currentRule.name + ((new Date().getTime() / 1000));
-                            valjs.workers.add(asyncId);
-                            busy = $.extend(trueValue, {}, { rule : currentRule.name, asyncId : asyncId});
-                            ret.busy.push(busy);
-                            binding.s(ruleNames[rule_index] + '_busy', busy);
+                        shouldRun = true;
+                        if (!submit && currentRule.checkEvent) {
+                            // Test if the rule should run
+                            // But for submit it should always run
+                            shouldRun = currentRule.checkEvent(event);
+                            binding.setRuleStatus(currentRule.name, false);
+                        }
+                        if (shouldRun) {
+                            result = valjsRuleRun(valjs, $elm, elementValue, event, currentRule, config);
+                            ret.hash.push(currentRule.name + "_hash");
+                            if (isAsync) {
+                                asyncId = currentRule.name + ((new Date().getTime() / 1000));
+                                valjs.workers.add(asyncId);
+                                busy = $.extend(trueValue, {}, { rule : currentRule.name, asyncId : asyncId});
+                                busy.msg = valjsGetValidationMessage({
+                                    valjs: valjs,
+                                    config : config,
+                                    rule : currentRule,
+                                    element : $elm,
+                                    msgName : 'busy'
+                                }, config );
+                                
+                                ret.busy.push(busy);
+                                binding.s(ruleNames[rule_index] + '_busy', busy);
 
-                            result
-                                .fail(function (result) {
-                                    result = valjsParseRuleResult(result, {
-                                        valjs: valjs,
-                                        config : config,
-                                        rule : currentRule,
-                                        element : $elm,
-                                        msgName : nullValue,
-                                        asyncId : asyncId
+                                result
+                                    .fail(function (result) {
+                                        result = valjsParseRuleResult(result, {
+                                            valjs: valjs,
+                                            config : config,
+                                            rule : currentRule,
+                                            element : $elm,
+                                            msgName : nullValue,
+                                            asyncId : asyncId
+                                        });
+                                        result.asyncId = asyncId;
+                                        binding.s(currentRule.name + '_asyncfail', result);
+                                        binding.r(currentRule.name + '_busy');
+                                        $elm.valjs('validateField', {
+                                            force : true,
+                                            submit : submit
+                                        });
+                                    })
+                                    .done(function (result) {
+                                        result = valjsParseRuleResult(result, {
+                                            valjs: valjs,
+                                            config : config,
+                                            rule : currentRule,
+                                            element : $elm,
+                                            msgName : nullValue
+                                        });
+                                        result.asyncId = asyncId;
+                                        binding.s(currentRule.name + '_resolved', result);
+                                        binding.r(currentRule.name + '_busy');
+                                        $elm.valjs('validateField', {
+                                            force : true,
+                                            submit : submit
+                                        });
                                     });
-                                    result.asyncId = asyncId;
-                                    binding.s(currentRule.name + '_asyncfail', result);
-                                    binding.r(currentRule.name + '_busy');
-                                    $elm.valjs('validateField', {
-                                        force : true
-                                    });
-                                })
-                                .done(function (result) {
-                                    result = valjsParseRuleResult(result, {
-                                        valjs: valjs,
-                                        config : config,
-                                        rule : currentRule,
-                                        element : $elm,
-                                        msgName : nullValue
-                                    });
-                                    result.asyncId = asyncId;
-                                    binding.s(currentRule.name + '_resolved', result);
-                                    binding.r(currentRule.name + '_busy');
-                                    $elm.valjs('validateField', {
-                                        force : true
-                                    });
-                                });
-                        } else {
-                            binding.setRuleStatus(currentRule.name, true, result);
+                            } else {
+                                binding.setRuleStatus(currentRule.name, true, result);
+                            }
                         }
                     }
                 }
 
-                if (result.unresolved) {
-                    ret.hash.push(currentRule.name + result.result);
-                    ret.unresolved.push($.extend(trueValue, {}, { msg : result.result }, { rule : currentRule.name}));
-                } else if (result.ok === falseValue) {
-                    ret.hash.push(currentRule.name + result.result);
-                    ret.fail.push($.extend(trueValue, {}, { msg : result.result }, { rule : currentRule.name}));
-                } else {
-                    ret.success.push($.extend(trueValue, {}, result.result, { rule : currentRule.name}));
+                if (result) {
+                    if (result.ok === falseValue) {
+                        ret.hash.push(currentRule.name + result.result);
+                        ret.fail.push($.extend(trueValue, {}, result.result, { rule : currentRule.name}));
+                    } else {
+                        ret.success.push($.extend(trueValue, {}, result.result, { rule : currentRule.name}));
+                    }
                 }
 
             }
 
         }
+
+            valjs.workers.commitRemove();
+    
         ret.hash = valjsStringChecksum((submit ? '1' : '0') + ret.hash.join('|'));
         //elementValidationResult.hash = (new Date());
+
         return ret;
     }
 
@@ -1180,7 +1293,6 @@ window.ValJS = (function (window, $) {
             return;
         }
 
-
         if (!valjsTestIsElementReadyForValidation($elm)) {
             if (binding.g(dataNameValJsHash)) {
                 valjsResetElementStatus($elm, valjs);
@@ -1197,16 +1309,16 @@ window.ValJS = (function (window, $) {
         }
 
         // Get validation results and make sure hash is updatd
+
         elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
+        binding.updateResults(elementValidationResult);
 
         if (previousHash === elementValidationResult.hash && valjs.config.alwaysTriggerFieldEvents === falseValue) {
-
             return binding.g(dataNameValjsValidationStatus);
         }
 
         binding.s(dataNameValJsHash, elementValidationResult.hash);
-
-        valjs.workers.commitRemove();
+        
 
         isValid = valjsTriggerElementValidationEvent(valjs, $elm, elementValidationResult, submit);
         return isValid;
@@ -1248,6 +1360,22 @@ window.ValJS = (function (window, $) {
         };
         this.r = function (key) {
             delete data[key];
+        };
+
+        this.updateResults = function(validationresult) {
+            var g = this.getResults();
+            if (g) {
+                if(validationresult.hash === g.hash) {
+                    return;
+                }
+            }
+            self.s('elementStatus', validationresult);
+            self.s('elementStatusT', (new Date()));
+            valjsInstance.elementUpdated(self);
+        };
+
+        this.getResults = function() {
+            return self.g('elementStatus');
         };
 
         this.setRuleStatus = function (name, status, result) {
@@ -1408,7 +1536,7 @@ window.ValJS = (function (window, $) {
                     }
                     fieldRules.ruleNames.push(ruleNames[i_index]);
 
-                    if (currentRule.deferred) {
+                    if (currentRule.async) {
                         self.s('hasAsync', true);
                     }
 
@@ -1501,10 +1629,11 @@ window.ValJS = (function (window, $) {
             return valjsGetElementValue(jqElement);
         };
 
-        this.validateField = function () {
-            var value = valjsGetElementValue(jqElement);
-           // $elm, valjs, event, elementValue, submit, force
-            return valjsInvokeElementValidation(jqElement, valjsInstance, undefined, value, undefined, true);
+        this.validateField = function (options) {
+            var value = valjsGetElementValue(jqElement),
+                submit = options ? options.submit : false;
+                           // $elm, valjs, event, elementValue, submit, force
+            return valjsInvokeElementValidation(jqElement, valjsInstance, undefined, value, submit, true);
         };
 
         function init() {
@@ -1599,6 +1728,10 @@ window.ValJS = (function (window, $) {
             }
         }
 
+        if (e.type && e.type === "change" && valueInfo.upd === false && binding.waitingRules(e)) {
+            valueInfo.upd = trueValue; 
+        }
+
         if (valueInfo.upd === trueValue) { //|| e.type === 'focusout'
             /*jshint validthis:true */
             valjsInvokeElementValidation($(this), e.data.valjs, e, valueInfo, false, force);
@@ -1626,6 +1759,7 @@ window.ValJS = (function (window, $) {
                 valjsData(form, dataNameValJsFormContext, valjs);
                 if (valjsLength(valjs.s) > 0) {
                     e.preventDefault();
+                    e.stopPropagation();
                     $(valjs.s).first().trigger('click');
                 } else {
                     if (valjsLength(form.find(submitQuery)) === 0) {
@@ -1643,6 +1777,7 @@ window.ValJS = (function (window, $) {
     function valjsValidateForm(valjs, e, submit) {
         var i, valueInfo, field, validationResult, ret = { invalid: [], busy : [] },
             len = valjsLength(valjs.e);
+        
         for (i = 0; i < len; i += 1) {
             field = $(valjs.e[i]);
             valueInfo = valjsGetElementValue(field, e);
@@ -1655,8 +1790,7 @@ window.ValJS = (function (window, $) {
                 }
             }
         }
-        //console.warn("Form validated");
-       // valjs.workers.commitRemove();
+        
         return ret;
     }
 
@@ -1739,10 +1873,18 @@ window.ValJS = (function (window, $) {
                 }
                 return;
             }
-            valjs.workers.wait(function () {
-                valjsData(self, dataNameValJsFormContext, valjs);
-                self.submit();//trigger('submit');
+
+            valjs.waitForIt(function() {
+                self.submit();
             });
+
+            /*valjs.workers.wait(function () {
+                valjsData(self, dataNameValJsFormContext, valjs);
+                var val = valjsValidateForm(valjs, null, false);
+                console.warn("wait is over. submit again", val);
+//                self.submit();//trigger('submit');
+  //              valjs.workers.stopWaiting();
+            });*/
         }
         valjsInvokeEvent(eventContext, 'invalidform',
             {
@@ -1778,7 +1920,7 @@ window.ValJS = (function (window, $) {
         valjs.jqContext
             //.off( eventNamespace)
             .on(valjsGetEventNames([keydownEvent, keyupEvent]), { valjs: valjs }, valjsSetFormContext)
-            .on(valjsGetEventNames([clickEvent, changeEvent, keyupEvent, blurEvent]), textElements, { valjs: valjs }, valjsTestElementChange)
+            .on(valjsGetEventNames([clickEvent, changeEvent, keyupEvent]), textElements, { valjs: valjs }, valjsTestElementChange)
             .on(valjsGetEventNames([clickEvent, changeEvent]), listElements, { valjs: valjs }, valjsTestElementChange)
             .on(valjsGetEventNames([clickEvent, changeEvent]), cbxElements, { valjs: valjs }, valjsTestElementChange);
 
@@ -1929,9 +2071,11 @@ window.ValJS = (function (window, $) {
                 'invalid': 'valjs-invalid',
                 'unknown': 'valjs-unknown',
                 'error': 'valjs-error',
-                'warning': 'valjs-warning'//,
-                //'busy' : 'valjs-busy',
-                //'unresolved' : 'valjs-unresolved'
+                'warning': 'valjs-warning',
+
+                // For async rules
+                'busy' : 'valjs-busy',
+                'failed' : 'valjs-failed' 
             }, // /modifierClassSuffix
 
             'selector': {
@@ -2520,7 +2664,6 @@ window.ValJS = (function (window, $) {
                 type = valjsArgs.field.type,
                 val = valjsArgs.field.value,
                 idx = 0;
-
             if (type === 'text' || type === 'textarea' || type === "file") {
                 val = valjsArgs.config.trim === trueValue ? $.trim(valjsArgs.field.value) : val;
                 if (valjsLength(val) === 0) {
@@ -3086,7 +3229,7 @@ window.ValJS = (function (window, $) {
 
     valjsAddRule('url', {
         options : {
-            value : 'ost',
+            value : '',
             msg : {
                 'error' : "Invalid URL"
             }
@@ -3151,30 +3294,45 @@ window.ValJS = (function (window, $) {
         }
     });
 
-    /*valjsAddRule('remote', {
+    valjsAddRule('remote', {
         async : 1000,
         prio : 1500, // Should be the last thing to run
-        events : ['blur'],
+        
+        // Only run this event on change
+        checkEvent : function(e) {
+            return e && e.type === "change";
+        },
+
         options : {
             allowFailed : false,
-            allowBusy : false,
+            prepare : function(valjsArgs) {
+                return {
+                    field : valjsArgs.element.attr('name'),
+                    value : valjsArgs.field.value
+                };
+            },
             msg : {
                 'error' : "Invalid entry",
                 'fail' : 'Unable to validate',
-                'busy' : 'Please wait...'
+                'busy' : 'Validating...'
             },
             ajax : {
+                method : 'post',
+                dataType : 'json',
                 success : function(jSend) {
-                    console.warn("success>data", jSend.data); 
-                    this._deferred.resolve(jSend.data); 
-                },
-                error : function(a,b,c) {
-                    if (b !== "abort") {
-                        this._deferred.reject("fail");
+                    if (valjsIsString(jSend)) {
+                        return this.reject('fail');
+                    }
+                    if (jSend.status && jSend.status === "success") {
+                        this.resolve(true);
+                    } else {
+                        this.resolve(jSend.data); 
                     }
                 },
-                data : {
-                    sleep : 2
+                error : function(a,b,c) {
+                    if (b !== "abort") { 
+                        this.reject("fail");
+                    }
                 }
             }
         },
@@ -3192,35 +3350,25 @@ window.ValJS = (function (window, $) {
         run : function(valjsArgs) {
             var  data = {},
             self = this,
-            cfg = valjsArgs.binding.getRule();
-            data[valjsArgs.element.attr('name')] = valjsArgs.field.value;
-
+            cfg = valjsArgs.binding.getRule(),
+            data = cfg.prepare(valjsArgs);
+            
             if (this._timer) {
                 clearTimeout(this._timer);
             }
 
-            this._deferred = $.Deferred();
-
             this._timer = setTimeout(function() {
-
                 self._ajax = $.ajax($.extend(true, {
-                    context : self,
-                    url : rootUrl + '/dummy/no',
+                    url : cfg.value,
                     data : data
-                }, cfg.ajax));
-
+                }, cfg.ajax, {
+                    context : self
+                }));
             }, 300);
-
-           // this._timer = setTimeout(function() {
-           //     d.reject("fail");
-//                console.warn("DONE DONE!")
-                //d.resolve(true);
-            //}, 1500); 
-
             
-            return this._deferred.promise();
+            return this.makePromise();
         }
     });
-*/
+
     return ValJS;
 }(window, jQuery));

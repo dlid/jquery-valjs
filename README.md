@@ -12,6 +12,9 @@ jQuery ValJS is a jQuery Form Validation library with focus on three main things
 
 ### Version
 
+0.8.5 2015-01-12
+- Added Remote rule
+
 0.8 2015-01-10
 - Rebuilt in preparation for future ajax support
 - Many bug fixes
