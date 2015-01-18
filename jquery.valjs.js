@@ -1,4 +1,4 @@
-/*! ValJS v0.8.5 (2015-01-12) | (c) 2014 | www.valjs.io */
+/*! ValJS v1.0 (2015-01-18) | (c) 2015 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -71,7 +71,7 @@ window.ValJS = (function (window, $) {
     var nullValue = null,
         dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '0.7.6';
+            this.valjsv = '1.0';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -357,7 +357,7 @@ window.ValJS = (function (window, $) {
      * @param  {object} ruleConfig  The rule definition
      */
     function valjsAddRule(name, ruleConfig) {
-        if (!/^[a-z]+$/.test(name)) {
+        if (!/^[a-z][a-z0-9]*$/.test(name)) {
             $.error('Bad rule name');
             return;
         }
@@ -1156,7 +1156,7 @@ window.ValJS = (function (window, $) {
                 result = ruleStatus.result;
                 if (result.ok === falseValue) {
                     ret.hash.push(currentRule.name + result.result);
-                    ret.fail.push($.extend(trueValue, {},  result , { rule : currentRule.name}));
+                    ret.fail.push(result.result);
                 } else {
                     ret.success.push($.extend(trueValue, {}, result, { rule : currentRule.name}));
                 }
@@ -1259,11 +1259,12 @@ window.ValJS = (function (window, $) {
                 }
 
                 if (result) {
+                    
                     if (result.ok === falseValue) {
-                        ret.hash.push(currentRule.name + result.result);
+                        ret.hash.push(currentRule.name + result.result.msg);
                         ret.fail.push($.extend(trueValue, {}, result.result, { rule : currentRule.name}));
                     } else {
-                        ret.success.push($.extend(trueValue, {}, result.result, { rule : currentRule.name}));
+                        ret.success.push($.extend(trueValue, {}, "success", { rule : currentRule.name}));
                     }
                 }
 
@@ -1272,7 +1273,7 @@ window.ValJS = (function (window, $) {
         }
 
             valjs.workers.commitRemove();
-    
+
         ret.hash = valjsStringChecksum((submit ? '1' : '0') + ret.hash.join('|'));
         //elementValidationResult.hash = (new Date());
 
@@ -1309,10 +1310,11 @@ window.ValJS = (function (window, $) {
         }
 
         // Get validation results and make sure hash is updatd
-
         elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
+        
         binding.updateResults(elementValidationResult);
-
+//        console.warn(elementValidationResult);
+        //console.warn( previousHash, elementValidationResult );
         if (previousHash === elementValidationResult.hash && valjs.config.alwaysTriggerFieldEvents === falseValue) {
             return binding.g(dataNameValjsValidationStatus);
         }
@@ -1832,12 +1834,13 @@ window.ValJS = (function (window, $) {
             submitEvent,
             eventContext;
 
-
+        //console.warn("[ValJS]" + e.isDefaultPrevented());
         if (!valjs) {
+//            console.warn("no context");
             // No current context, then do nothing by triggering an event that says that ValJS is done
-            e.preventDefault();
+            //e.preventDefault();
             /*jshint validthis:true */
-            $(this).trigger('submit', { valjsDone: trueValue });
+            //$(this).trigger('submit', $.extend(true, { valjsDone: trueValue }, e));
             return trueValue;
         }
 
