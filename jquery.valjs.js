@@ -1,4 +1,4 @@
-/*! ValJS v1.0 (2015-01-18) | (c) 2015 | www.valjs.io */
+/*! ValJS v1.1 (2015-07-18) | (c) 2015 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -71,7 +71,7 @@ window.ValJS = (function (window, $) {
     var nullValue = null,
         dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '1.0';
+            this.valjsv = '1.1';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
@@ -156,15 +156,16 @@ window.ValJS = (function (window, $) {
             }
         }
 
-        /*if (waitingFields) {
-            console.warn("FORM: rules waiting");
-        } else if (failedFields) {
-            console.warn("FORM: failed");
-        } else if (busyFields) {
-            console.warn("FORM: busy...");
-        } else {
-            console.warn("FORM: valid!");
-        }*/
+        if (failedFields) {
+                    valjsInvokeEvent(this.jqContext, 'refreshform', {
+                valjs: $.extend({ status : "invalid", binding : binding, context : this.jqContext, form : this.$form})
+            });
+        } else if(!failedFields && !waitingFields && !busyFields) {
+                    valjsInvokeEvent(this.jqContext, 'refreshform', {
+                valjs: $.extend({ status : "valid", binding : binding, context : this.jqContext, form : this.$form})
+            });
+        }
+
 
         if (this.vars.wfi) {
             if (!failedFields && !waitingFields && !busyFields) {
@@ -919,6 +920,8 @@ window.ValJS = (function (window, $) {
             valjs: $.extend(refreshData, { binding : binding, context : valjs.jqContext, form : valjs.$form, element : $elm})
         });
 
+
+
         if (!e.isDefaultPrevented()) {
             valjsRefreshField(valjs, $elm, refreshData);
         }
@@ -1074,6 +1077,7 @@ window.ValJS = (function (window, $) {
                 element : $elm
             })
         });
+
 
         if (!e.isDefaultPrevented()) {
             valjsRefreshField(valjs, $elm, refreshData);
@@ -2059,6 +2063,8 @@ window.ValJS = (function (window, $) {
             allowRuleInitialization : trueValue,
 
             setupField : $.noop,
+
+            autoEnableButtons : true,
 
             /**
             * Modifiers
