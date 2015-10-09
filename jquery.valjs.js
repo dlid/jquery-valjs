@@ -71,7 +71,7 @@ window.ValJS = (function (window, $) {
     var nullValue = null,
         dataNameValJsInstance = 'vjs-i',
         ValJS = function (elm, options) {
-            this.valjsv = '1.1';
+            this.valjsv = '1.2';
             this.context = elm;
             this.jqContext = $(elm);
             this.jqContext.data(dataNameValJsInstance, this);
