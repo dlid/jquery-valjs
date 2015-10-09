@@ -1,4 +1,4 @@
-/*! ValJS v1.1 (2015-07-18) | (c) 2015 | www.valjs.io */
+/*! ValJS v1.2 (2015-10-09) | (c) 2015 | www.valjs.io */
 /*global window, jQuery, console, setTimeout */
 /*jslint bitwise: true, regexp: true */
 /*Compiled via http://closure-compiler.appspot.com/home*/
@@ -945,8 +945,8 @@ window.ValJS = (function (window, $) {
         valjsRemoveData($elm, dataNameValJsValueCache);
     }
 
-    function valjsTestIsElementReadyForValidation($elm) {
-        return $elm.is(':visible') && !$elm.is(':disabled');
+    function valjsTestIsElementReadyForValidation($elm, includeHidden) {
+        return (includeHidden === true || $elm.is(':visible')) && !$elm.is(':disabled');
     }
 
     function valjsGetElementBoundRules($elm) {
@@ -1285,7 +1285,7 @@ window.ValJS = (function (window, $) {
     }
 
 
-    function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit, force) { // , valjs, event
+    function valjsInvokeElementValidation($elm, valjs, event, elementValue, submit, force, includeHidden) { // , valjs, event
         var binding = valjsData($elm, dataNameValjsBinding),
             rules = valjsGetElementBoundRules($elm),
             ruleNames = rules ? rules.ruleNames : nullValue,
@@ -1298,7 +1298,7 @@ window.ValJS = (function (window, $) {
             return;
         }
 
-        if (!valjsTestIsElementReadyForValidation($elm)) {
+        if (!valjsTestIsElementReadyForValidation($elm, includeHidden)) {
             if (binding.g(dataNameValJsHash)) {
                 valjsResetElementStatus($elm, valjs);
             }
@@ -1315,7 +1315,6 @@ window.ValJS = (function (window, $) {
 
         // Get validation results and make sure hash is updatd
         elementValidationResult = valjsRunRulesForElement(valjs, ruleNames, $elm, elementValue, submit, event);
-        
         binding.updateResults(elementValidationResult);
 //        console.warn(elementValidationResult);
         //console.warn( previousHash, elementValidationResult );
@@ -1780,14 +1779,15 @@ window.ValJS = (function (window, $) {
     }
 
 
-    function valjsValidateForm(valjs, e, submit) {
+    function valjsValidateForm(valjs, e, submit, options) {
         var i, valueInfo, field, validationResult, ret = { invalid: [], busy : [] },
-            len = valjsLength(valjs.e);
+            len = valjsLength(valjs.e),
+            options = $.extend({includeHidden : false}, options);
         
         for (i = 0; i < len; i += 1) {
             field = $(valjs.e[i]);
             valueInfo = valjsGetElementValue(field, e);
-            validationResult = valjsInvokeElementValidation(field, valjs, e, valueInfo, submit === trueValue ? trueValue : falseValue);
+            validationResult = valjsInvokeElementValidation(field, valjs, e, valueInfo, submit === trueValue ? trueValue : falseValue, false, options.includeHidden === true);
             if (!valjsIsUndefined(validationResult) && validationResult !== trueValue) {
                 if (validationResult.status === 'invalid') {
                     ret.invalid.push(validationResult);
@@ -2128,10 +2128,13 @@ window.ValJS = (function (window, $) {
             findMsg : $.noop
         },
 
-        validateForm: function () {
-            var valjs = valjsData($(this), dataNameValJsInstance);
+        validateForm: function (options) {
+            var valjs = valjsData($(this), dataNameValJsInstance),
+                options = $.extend({
+                    includeHidden : false 
+                }, options);
 
-            return valjsValidateForm(valjs, jQuery.Event('validateForm'), false);
+            return valjsValidateForm(valjs, jQuery.Event('validateForm'), false, options);
         },
 
 
