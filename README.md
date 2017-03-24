@@ -1,4 +1,4 @@
-http://valjs.io
+http://valjs.dlid.se
 
 -----------------------------------------------------------
 
@@ -86,7 +86,7 @@ Then you need to trigger ValJS for the form:
 
 ### Todo's
 
-See http://valjs.io/docs/articles/about/changelog#future
+See http://valjs.dlid.se/docs/articles/about/changelog#future
 
 ...
 
